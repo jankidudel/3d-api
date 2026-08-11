@@ -1,0 +1,92 @@
+package apihttp
+
+import (
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"time"
+
+	"3d-api/internal/jobs"
+	"3d-api/internal/response"
+)
+
+type JobsHandler struct {
+	service *jobs.Service
+}
+
+type createJobRequest struct {
+	FileName      string `json:"fileName"`
+	FileSizeBytes int64  `json:"fileSizeBytes"`
+}
+
+type jobResponse struct {
+	ID            string      `json:"id"`
+	FileName      string      `json:"fileName"`
+	FileSizeBytes int64       `json:"fileSizeBytes"`
+	Status        jobs.Status `json:"status"`
+	CreatedAt     time.Time   `json:"createdAt"`
+}
+
+func NewJobsHandler(service *jobs.Service) *JobsHandler {
+	return &JobsHandler{service: service}
+}
+
+func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var request createJobRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		response.Error(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	job, err := h.service.Create(r.Context(), jobs.CreateInput{
+		FileName:      request.FileName,
+		FileSizeBytes: request.FileSizeBytes,
+	})
+	if err != nil {
+		if isValidationError(err) {
+			response.Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	response.JSON(w, http.StatusCreated, toJobResponse(job))
+}
+
+func (h *JobsHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	job, err := h.service.GetByID(r.Context(), r.PathValue("id"))
+	if err != nil {
+		if errors.Is(err, jobs.ErrNotFound) {
+			response.Error(w, http.StatusNotFound, "job not found")
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	response.JSON(w, http.StatusOK, toJobResponse(job))
+}
+
+func isValidationError(err error) bool {
+	return errors.Is(err, jobs.ErrFileNameRequired) ||
+		errors.Is(err, jobs.ErrFileNameNotSTL) ||
+		errors.Is(err, jobs.ErrFileSizeInvalid)
+}
+
+func toJobResponse(job jobs.Job) jobResponse {
+	return jobResponse{
+		ID:            job.ID,
+		FileName:      job.FileName,
+		FileSizeBytes: job.FileSizeBytes,
+		Status:        job.Status,
+		CreatedAt:     job.CreatedAt,
+	}
+}

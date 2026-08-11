@@ -1,0 +1,154 @@
+package apihttp
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"3d-api/internal/jobs"
+)
+
+func testRouter() http.Handler {
+	service := jobs.NewService(jobs.NewMemoryRepository())
+	return NewRouter(NewJobsHandler(service))
+}
+
+func TestHealth(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/health", nil)
+	response := httptest.NewRecorder()
+
+	testRouter().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	if response.Header().Get("Content-Type") != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", response.Header().Get("Content-Type"))
+	}
+	if response.Body.String() != "{\"status\":\"ok\"}\n" {
+		t.Errorf("body = %q", response.Body.String())
+	}
+}
+
+func TestCreateAndGetJob(t *testing.T) {
+	router := testRouter()
+	createRequest := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":117884}`))
+	createResponse := httptest.NewRecorder()
+
+	router.ServeHTTP(createResponse, createRequest)
+
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("POST status = %d, want %d; body = %s", createResponse.Code, http.StatusCreated, createResponse.Body.String())
+	}
+	var created jobResponse
+	if err := json.NewDecoder(createResponse.Body).Decode(&created); err != nil {
+		t.Fatalf("decode POST response: %v", err)
+	}
+	if created.ID == "" || created.FileName != "rotor.stl" || created.FileSizeBytes != 117884 || created.Status != jobs.StatusCreated {
+		t.Errorf("POST body = %+v", created)
+	}
+
+	getRequest := httptest.NewRequest(http.MethodGet, "/jobs/"+created.ID, nil)
+	getResponse := httptest.NewRecorder()
+	router.ServeHTTP(getResponse, getRequest)
+
+	if getResponse.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, want %d", getResponse.Code, http.StatusOK)
+	}
+	var got jobResponse
+	if err := json.NewDecoder(getResponse.Body).Decode(&got); err != nil {
+		t.Fatalf("decode GET response: %v", err)
+	}
+	if got != created {
+		t.Errorf("GET body = %+v, want %+v", got, created)
+	}
+}
+
+func TestGetMissingJob(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/jobs/missing", nil)
+	response := httptest.NewRecorder()
+
+	testRouter().ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusNotFound)
+	}
+	if response.Body.String() != "{\"error\":\"job not found\"}\n" {
+		t.Errorf("body = %q", response.Body.String())
+	}
+}
+
+func TestCreateRejectsMalformedJSON(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(`{"fileName":`))
+	response := httptest.NewRecorder()
+
+	testRouter().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
+	}
+}
+
+func TestCreateRejectsInvalidInput(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		wantBody string
+	}{
+		{name: "missing filename", body: `{"fileSizeBytes":1}`, wantBody: `{"error":"fileName is required"}` + "\n"},
+		{name: "non STL filename", body: `{"fileName":"rotor.obj","fileSizeBytes":1}`, wantBody: `{"error":"fileName must end in .stl"}` + "\n"},
+		{name: "zero size", body: `{"fileName":"rotor.stl","fileSizeBytes":0}`, wantBody: `{"error":"fileSizeBytes must be greater than 0"}` + "\n"},
+		{name: "negative size", body: `{"fileName":"rotor.stl","fileSizeBytes":-1}`, wantBody: `{"error":"fileSizeBytes must be greater than 0"}` + "\n"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(test.body))
+			response := httptest.NewRecorder()
+
+			testRouter().ServeHTTP(response, request)
+
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
+			}
+			if response.Body.String() != test.wantBody {
+				t.Errorf("body = %q, want %q", response.Body.String(), test.wantBody)
+			}
+		})
+	}
+}
+
+func TestCreateRejectsUnknownFields(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":1,"unexpected":true}`))
+	response := httptest.NewRecorder()
+
+	testRouter().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
+	}
+}
+
+func TestCreateRejectsMultipleJSONValues(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":1} {}`))
+	response := httptest.NewRecorder()
+
+	testRouter().ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
+	}
+}
+
+func TestRouterRejectsUnsupportedMethod(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPut, "/jobs", nil)
+	response := httptest.NewRecorder()
+
+	testRouter().ServeHTTP(response, request)
+
+	if response.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusMethodNotAllowed)
+	}
+}
