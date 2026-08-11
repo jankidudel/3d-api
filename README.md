@@ -19,6 +19,25 @@ PORT=9000 go run ./cmd/api
 Stop the server with `Ctrl+C`. Jobs use in-memory storage and are lost when
 the server stops.
 
+## Swagger UI
+
+With the API running, open the interactive API documentation in a browser:
+
+```text
+http://localhost:8080/swagger/
+```
+
+Use **Try it out** in the Swagger UI to call the health and job endpoints.
+The raw OpenAPI 3.1 document is available at:
+
+```text
+http://localhost:8080/openapi.yaml
+```
+
+The UI loads its version-pinned Swagger UI assets from jsDelivr, so the
+browser needs internet access to render the interactive page. The API and its
+OpenAPI document do not require internet access.
+
 ## Endpoints
 
 Check service health:

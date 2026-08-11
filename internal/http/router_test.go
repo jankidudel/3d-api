@@ -152,3 +152,57 @@ func TestRouterRejectsUnsupportedMethod(t *testing.T) {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusMethodNotAllowed)
 	}
 }
+
+func TestOpenAPIDocument(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
+	response := httptest.NewRecorder()
+
+	testRouter().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	if response.Header().Get("Content-Type") != "application/yaml" {
+		t.Errorf("Content-Type = %q, want application/yaml", response.Header().Get("Content-Type"))
+	}
+	document := response.Body.String()
+	if !strings.HasPrefix(document, "openapi: 3.1.0\n") {
+		t.Error("OpenAPI document does not declare version 3.1.0")
+	}
+	for _, path := range []string{"  /health:", "  /jobs:", "  /jobs/{id}:"} {
+		if !strings.Contains(document, path) {
+			t.Errorf("OpenAPI document does not contain %q", path)
+		}
+	}
+}
+
+func TestSwaggerUI(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/swagger/", nil)
+	response := httptest.NewRecorder()
+
+	testRouter().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	if response.Header().Get("Content-Type") != "text/html; charset=utf-8" {
+		t.Errorf("Content-Type = %q, want text/html; charset=utf-8", response.Header().Get("Content-Type"))
+	}
+	if !strings.Contains(response.Body.String(), `url: "/openapi.yaml"`) {
+		t.Error("Swagger UI does not reference the OpenAPI document")
+	}
+}
+
+func TestSwaggerRedirect(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/swagger", nil)
+	response := httptest.NewRecorder()
+
+	testRouter().ServeHTTP(response, request)
+
+	if response.Code != http.StatusMovedPermanently {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusMovedPermanently)
+	}
+	if location := response.Header().Get("Location"); location != "/swagger/" {
+		t.Errorf("Location = %q, want /swagger/", location)
+	}
+}

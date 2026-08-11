@@ -1,0 +1,146 @@
+openapi: 3.1.0
+info:
+  title: 3D Quality Check API
+  description: Creates and retrieves STL quality-check jobs.
+  version: 0.1.0
+servers:
+  - url: /
+paths:
+  /health:
+    get:
+      summary: Check API health
+      operationId: getHealth
+      responses:
+        "200":
+          description: The API is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+  /jobs:
+    post:
+      summary: Create a quality-check job
+      operationId: createJob
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobRequest"
+            example:
+              fileName: rotor.stl
+              fileSizeBytes: 117884
+      responses:
+        "201":
+          description: The job was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /jobs/{id}:
+    get:
+      summary: Retrieve a job
+      operationId: getJob
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job ID returned when the job was created.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The requested job.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: The job does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: job not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+    CreateJobRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - fileName
+        - fileSizeBytes
+      properties:
+        fileName:
+          type: string
+          pattern: "\\.[sS][tT][lL]$"
+          example: rotor.stl
+        fileSizeBytes:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 117884
+    Job:
+      type: object
+      required:
+        - id
+        - fileName
+        - fileSizeBytes
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          example: 1138660d531841f094944f9753b95a3a
+        fileName:
+          type: string
+          example: rotor.stl
+        fileSizeBytes:
+          type: integer
+          format: int64
+          example: 117884
+        status:
+          type: string
+          enum:
+            - created
+        createdAt:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+  responses:
+    BadRequest:
+      description: The request is invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalServerError:
+      description: An unexpected error occurred.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

@@ -20,6 +20,9 @@ Do not duplicate STL parsing or geometry validation in this service.
 
 Executable entry points live under `cmd/`.
 
+The OpenAPI contract lives in `api/openapi.yaml` and is embedded into the
+binary. Update it whenever an HTTP endpoint or DTO changes.
+
 Application code lives under `internal/`:
 
 - `internal/http` contains routing, handlers, and HTTP DTOs.
