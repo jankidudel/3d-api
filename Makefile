@@ -1,4 +1,7 @@
-.PHONY: fmt lint test test-race vet check
+.PHONY: run fmt lint test test-race vet check
+
+run:
+	go run ./cmd/api
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './vendor/*')

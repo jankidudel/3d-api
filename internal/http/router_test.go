@@ -191,6 +191,9 @@ func TestSwaggerUI(t *testing.T) {
 	if !strings.Contains(response.Body.String(), `url: "/openapi.yaml"`) {
 		t.Error("Swagger UI does not reference the OpenAPI document")
 	}
+	if !strings.Contains(response.Body.String(), "tryItOutEnabled: true") {
+		t.Error("Swagger UI does not enable Try it out by default")
+	}
 }
 
 func TestSwaggerRedirect(t *testing.T) {

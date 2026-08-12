@@ -7,13 +7,15 @@ Initial HTTP API for the 3D/STL quality-check service. Jobs are currently kept i
 Go 1.26.5 or later is required. From the repository root, start the API with:
 
 ```bash
-go run ./cmd/api
+make run
 ```
+
+This runs `go run ./cmd/api`.
 
 The API listens on port `8080`. Set `PORT` to override it:
 
 ```bash
-PORT=9000 go run ./cmd/api
+PORT=9000 make run
 ```
 
 Stop the server with `Ctrl+C`. Jobs use in-memory storage and are lost when

@@ -23,7 +23,8 @@ const swaggerUI = `<!doctype html>
         url: "/openapi.yaml",
         dom_id: "#swagger-ui",
         deepLinking: true,
-        displayRequestDuration: true
+        displayRequestDuration: true,
+        tryItOutEnabled: true
       });
     };
   </script>
