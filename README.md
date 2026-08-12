@@ -4,20 +4,28 @@ Initial HTTP API for the 3D/STL quality-check service. Jobs are currently kept i
 
 ## Run
 
-Go 1.26.5 or later is required. Set the upload bucket and AWS region, then
-start the API from the repository root:
+Go 1.26.5 or later is required. Create your local configuration file once:
 
 ```bash
-S3_BUCKET=my-quality-check-uploads AWS_REGION=eu-west-2 make run
+cp .env.example .env
 ```
+
+Edit `.env` with your S3 bucket and AWS region. Set `AWS_PROFILE` only if that
+named profile already exists in your local AWS configuration. Then start the
+API from the repository root:
+
+```bash
+make run
+```
+
+The Makefile loads `.env` before running `go run ./cmd/api`. The `.env` file is
+ignored by Git; `.env.example` documents the supported local settings without
+containing credentials or environment-specific values.
 
 This runs `go run ./cmd/api`.
 
-The API listens on port `8080`. Set `PORT` to override it:
-
-```bash
-PORT=9000 S3_BUCKET=my-quality-check-uploads AWS_REGION=eu-west-2 make run
-```
+The API listens on the `PORT` configured in `.env`, which defaults to `8080`
+in the example file.
 
 AWS credentials are loaded through the AWS SDK's standard credential chain,
 including environment variables, shared AWS config/profile files, and IAM

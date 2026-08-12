@@ -1,7 +1,14 @@
 .PHONY: run fmt lint test test-race vet check
 
 run:
-	go run ./cmd/api
+	@set -a; \
+	if [ ! -f .env ]; then \
+		echo ".env is missing. Run: cp .env.example .env"; \
+		exit 1; \
+	fi; \
+	. ./.env; \
+	set +a; \
+	exec go run ./cmd/api
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './vendor/*')
