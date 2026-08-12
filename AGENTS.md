@@ -28,6 +28,7 @@ Application code lives under `internal/`:
 - `internal/http` contains routing, handlers, and HTTP DTOs.
 - `internal/jobs` contains the job domain, service, and repository.
 - `internal/response` contains shared JSON response helpers.
+- `internal/uploads` contains S3 upload-signing infrastructure.
 
 Keep HTTP-specific concerns out of the jobs package. Handlers should call the
 service rather than accessing repository storage directly.

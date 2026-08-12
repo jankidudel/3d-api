@@ -16,40 +16,64 @@ var (
 )
 
 type Service struct {
-	repository Repository
+	repository     Repository
+	uploadSigner   UploadSigner
+	uploadLifetime time.Duration
 }
 
-func NewService(repository Repository) *Service {
-	return &Service{repository: repository}
+type UploadSigner interface {
+	PresignPut(ctx context.Context, objectKey string, fileSizeBytes int64, lifetime time.Duration) (url string, method string, err error)
 }
 
-func (s *Service) Create(ctx context.Context, input CreateInput) (Job, error) {
+func NewService(repository Repository, uploadSigner UploadSigner, uploadLifetime time.Duration) *Service {
+	return &Service{
+		repository:     repository,
+		uploadSigner:   uploadSigner,
+		uploadLifetime: uploadLifetime,
+	}
+}
+
+func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, error) {
 	if strings.TrimSpace(input.FileName) == "" {
-		return Job{}, ErrFileNameRequired
+		return CreateResult{}, ErrFileNameRequired
 	}
 	if !strings.HasSuffix(strings.ToLower(input.FileName), ".stl") {
-		return Job{}, ErrFileNameNotSTL
+		return CreateResult{}, ErrFileNameNotSTL
 	}
 	if input.FileSizeBytes <= 0 {
-		return Job{}, ErrFileSizeInvalid
+		return CreateResult{}, ErrFileSizeInvalid
 	}
 
 	id, err := newID()
 	if err != nil {
-		return Job{}, err
+		return CreateResult{}, err
 	}
 
+	createdAt := time.Now().UTC()
 	job := Job{
 		ID:            id,
 		FileName:      input.FileName,
 		FileSizeBytes: input.FileSizeBytes,
 		Status:        StatusCreated,
-		CreatedAt:     time.Now().UTC(),
+		CreatedAt:     createdAt,
+	}
+
+	url, method, err := s.uploadSigner.PresignPut(ctx, "jobs/"+id+"/input.stl", input.FileSizeBytes, s.uploadLifetime)
+	if err != nil {
+		return CreateResult{}, err
 	}
 	if err := s.repository.Create(ctx, job); err != nil {
-		return Job{}, err
+		return CreateResult{}, err
 	}
-	return job, nil
+
+	return CreateResult{
+		Job: job,
+		Upload: Upload{
+			URL:       url,
+			Method:    method,
+			ExpiresAt: createdAt.Add(s.uploadLifetime),
+		},
+	}, nil
 }
 
 func (s *Service) GetByID(ctx context.Context, id string) (Job, error) {

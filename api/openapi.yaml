@@ -34,11 +34,11 @@ paths:
               fileSizeBytes: 117884
       responses:
         "201":
-          description: The job was created.
+          description: The job was created and an upload URL was generated.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Job"
+                $ref: "#/components/schemas/CreateJobResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -122,6 +122,33 @@ components:
           enum:
             - created
         createdAt:
+          type: string
+          format: date-time
+    CreateJobResponse:
+      allOf:
+        - $ref: "#/components/schemas/Job"
+        - type: object
+          required:
+            - upload
+          properties:
+            upload:
+              $ref: "#/components/schemas/Upload"
+    Upload:
+      type: object
+      required:
+        - url
+        - method
+        - expiresAt
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Presigned S3 URL for uploading the STL file.
+        method:
+          type: string
+          enum:
+            - PUT
+        expiresAt:
           type: string
           format: date-time
     ErrorResponse:

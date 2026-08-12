@@ -4,10 +4,11 @@ Initial HTTP API for the 3D/STL quality-check service. Jobs are currently kept i
 
 ## Run
 
-Go 1.26.5 or later is required. From the repository root, start the API with:
+Go 1.26.5 or later is required. Set the upload bucket and AWS region, then
+start the API from the repository root:
 
 ```bash
-make run
+S3_BUCKET=my-quality-check-uploads AWS_REGION=eu-west-2 make run
 ```
 
 This runs `go run ./cmd/api`.
@@ -15,8 +16,13 @@ This runs `go run ./cmd/api`.
 The API listens on port `8080`. Set `PORT` to override it:
 
 ```bash
-PORT=9000 make run
+PORT=9000 S3_BUCKET=my-quality-check-uploads AWS_REGION=eu-west-2 make run
 ```
+
+AWS credentials are loaded through the AWS SDK's standard credential chain,
+including environment variables, shared AWS config/profile files, and IAM
+roles. The API process requires permission to sign `s3:PutObject` requests for
+the configured bucket.
 
 Stop the server with `Ctrl+C`. Jobs use in-memory storage and are lost when
 the server stops.
@@ -67,6 +73,18 @@ curl -i -X POST http://localhost:8080/jobs \
   -d '{"fileName":"rotor.stl","fileSizeBytes":117884}'
 ```
 
+The response includes a presigned upload URL valid for 15 minutes. Upload the
+file directly to S3 using the returned method and URL:
+
+```bash
+curl -X PUT --upload-file rotor.stl 'PRESIGNED_UPLOAD_URL'
+```
+
+The uploaded object key is `jobs/{job-id}/input.stl`. For browser uploads, the
+S3 bucket must have a CORS rule that allows `PUT` from the frontend's origin.
+Do not make the bucket public; the presigned URL grants temporary permission
+for this specific upload.
+
 Retrieve a job using the `id` returned by the create request:
 
 ```bash
@@ -116,7 +134,7 @@ the Swagger/OpenAPI endpoints.
 
 ## Future processing flow
 
-Once asynchronous processing and S3 integration are implemented, the frontend
+Once asynchronous processing is implemented, the frontend
 should poll `GET /jobs/{id}` until the job reaches a terminal status. Use a
 typed status rather than a separate `completed` boolean, for example:
 

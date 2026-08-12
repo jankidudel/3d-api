@@ -1,18 +1,31 @@
 package apihttp
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"3d-api/internal/jobs"
 )
 
 func testRouter() http.Handler {
-	service := jobs.NewService(jobs.NewMemoryRepository())
+	service := jobs.NewService(jobs.NewMemoryRepository(), httpStubUploadSigner{}, 15*time.Minute)
 	return NewRouter(NewJobsHandler(service))
+}
+
+type httpStubUploadSigner struct{}
+
+func (httpStubUploadSigner) PresignPut(
+	context.Context,
+	string,
+	int64,
+	time.Duration,
+) (string, string, error) {
+	return "https://uploads.example/presigned", http.MethodPut, nil
 }
 
 func TestHealth(t *testing.T) {
@@ -42,12 +55,18 @@ func TestCreateAndGetJob(t *testing.T) {
 	if createResponse.Code != http.StatusCreated {
 		t.Fatalf("POST status = %d, want %d; body = %s", createResponse.Code, http.StatusCreated, createResponse.Body.String())
 	}
-	var created jobResponse
+	var created createJobResponse
 	if err := json.NewDecoder(createResponse.Body).Decode(&created); err != nil {
 		t.Fatalf("decode POST response: %v", err)
 	}
 	if created.ID == "" || created.FileName != "rotor.stl" || created.FileSizeBytes != 117884 || created.Status != jobs.StatusCreated {
 		t.Errorf("POST body = %+v", created)
+	}
+	if created.Upload.URL != "https://uploads.example/presigned" || created.Upload.Method != http.MethodPut {
+		t.Errorf("POST upload = %+v", created.Upload)
+	}
+	if want := created.CreatedAt.Add(15 * time.Minute); !created.Upload.ExpiresAt.Equal(want) {
+		t.Errorf("POST upload expiry = %v, want %v", created.Upload.ExpiresAt, want)
 	}
 
 	getRequest := httptest.NewRequest(http.MethodGet, "/jobs/"+created.ID, nil)
@@ -61,8 +80,8 @@ func TestCreateAndGetJob(t *testing.T) {
 	if err := json.NewDecoder(getResponse.Body).Decode(&got); err != nil {
 		t.Fatalf("decode GET response: %v", err)
 	}
-	if got != created {
-		t.Errorf("GET body = %+v, want %+v", got, created)
+	if got != created.jobResponse {
+		t.Errorf("GET body = %+v, want %+v", got, created.jobResponse)
 	}
 }
 

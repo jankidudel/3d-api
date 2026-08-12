@@ -1,13 +1,14 @@
 package apihttp
 
 import (
-	"3d-api/internal/jobs"
-	"3d-api/internal/response"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"time"
+
+	"3d-api/internal/jobs"
+	"3d-api/internal/response"
 )
 
 type JobsHandler struct {
@@ -27,6 +28,17 @@ type jobResponse struct {
 	CreatedAt     time.Time   `json:"createdAt"`
 }
 
+type createJobResponse struct {
+	jobResponse
+	Upload uploadResponse `json:"upload"`
+}
+
+type uploadResponse struct {
+	URL       string    `json:"url"`
+	Method    string    `json:"method"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
 func NewJobsHandler(service *jobs.Service) *JobsHandler {
 	return &JobsHandler{service: service}
 }
@@ -44,7 +56,7 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job, err := h.service.Create(r.Context(), jobs.CreateInput{
+	result, err := h.service.Create(r.Context(), jobs.CreateInput{
 		FileName:      request.FileName,
 		FileSizeBytes: request.FileSizeBytes,
 	})
@@ -57,7 +69,14 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.JSON(w, http.StatusCreated, toJobResponse(job))
+	response.JSON(w, http.StatusCreated, createJobResponse{
+		jobResponse: toJobResponse(result.Job),
+		Upload: uploadResponse{
+			URL:       result.Upload.URL,
+			Method:    result.Upload.Method,
+			ExpiresAt: result.Upload.ExpiresAt,
+		},
+	})
 }
 
 func (h *JobsHandler) GetByID(w http.ResponseWriter, r *http.Request) {

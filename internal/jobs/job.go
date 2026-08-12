@@ -18,3 +18,14 @@ type CreateInput struct {
 	FileName      string
 	FileSizeBytes int64
 }
+
+type Upload struct {
+	URL       string
+	Method    string
+	ExpiresAt time.Time
+}
+
+type CreateResult struct {
+	Job    Job
+	Upload Upload
+}
