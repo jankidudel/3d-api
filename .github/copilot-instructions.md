@@ -15,11 +15,11 @@ When generating Go:
 - Add or update tests when behavior changes.
 - Do not modify unrelated code.
 - Run `gofmt` on changed Go files.
+- Keep generated code clean under the repository's pinned Staticcheck linter.
 
 Before completing implementation work, ensure:
 
-    go test ./...
-    go vet ./...
+    make check
 
 When concurrent code changes, also run:
 

@@ -44,6 +44,7 @@ repository. Avoid unnecessary layers and dependency-injection frameworks.
 - Return stable client-facing errors without internal details.
 - Protect shared mutable state used by concurrent HTTP requests.
 - Run `gofmt` on changed Go files.
+- Keep code clean under Staticcheck; its version is pinned in `go.mod`.
 - Do not add AWS, databases, authentication, queues, or external services
   unless explicitly requested.
 
@@ -53,8 +54,7 @@ Every new behavior should have automated tests where practical.
 
 Run before considering a change complete:
 
-    go test ./...
-    go vet ./...
+    make check
 
 Use the race detector when changing concurrent code:
 

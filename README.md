@@ -38,6 +38,17 @@ The UI loads its version-pinned Swagger UI assets from jsDelivr, so the
 browser needs internet access to render the interactive page. The API and its
 OpenAPI document do not require internet access.
 
+## Format code
+
+Go includes an official formatter, `gofmt`. Format every Go file with:
+
+```bash
+make fmt
+```
+
+Most Go IDE extensions can run `gofmt` automatically when a file is saved.
+For VS Code, install the official Go extension and enable format on save.
+
 ## Endpoints
 
 Check service health:
@@ -65,30 +76,83 @@ curl http://localhost:8080/jobs/JOB_ID
 Run the complete test suite from the repository root:
 
 ```bash
-go test ./...
+make test
 ```
 
 Run static analysis:
 
 ```bash
-go vet ./...
+make vet
 ```
+
+Run Staticcheck linting across all Go packages:
+
+```bash
+make lint
+```
+
+Staticcheck is pinned as a Go tool in `go.mod`, so contributors use the same
+version without installing it globally. The first run may download the tool.
 
 When changing concurrent repository code, also run the tests with Go's race
 detector:
 
 ```bash
-go test -race ./...
+make test-race
 ```
+
+Run formatting validation, vet, linting, and tests together with:
+
+```bash
+make check
+```
+
+Tests cover the jobs service validation and retrieval behavior, the
+thread-safe in-memory repository, concurrent repository access, HTTP routing,
+JSON validation, health checks, job creation/retrieval, error responses, and
+the Swagger/OpenAPI endpoints.
+
+## Future processing flow
+
+Once asynchronous processing and S3 integration are implemented, the frontend
+should poll `GET /jobs/{id}` until the job reaches a terminal status. Use a
+typed status rather than a separate `completed` boolean, for example:
+
+```json
+{
+  "id": "...",
+  "status": "processing"
+}
+```
+
+followed by:
+
+```json
+{
+  "id": "...",
+  "status": "completed",
+  "report": {},
+  "downloadUrl": "https://..."
+}
+```
+
+Expected statuses are `created`, `uploading`, `queued`, `processing`,
+`completed`, and `failed`. The frontend should stop polling for `completed` or
+`failed`, use a modest delay such as two seconds, and apply backoff if
+processing takes longer. A presigned URL is temporary, so the API should
+generate it when returning a completed result rather than persist it as job
+state. WebSockets or server-sent events can be added later if polling becomes
+too slow or expensive; polling is the simplest appropriate MVP design.
 
 ## Pre-commit hook
 
 This repository includes a hook at `.githooks/pre-commit` that runs
-`go test ./...` before every commit. Enable repository-managed hooks once per
+`make check` before every commit. Enable repository-managed hooks once per
 clone with:
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-A commit is stopped if the tests fail.
+A commit is stopped if Go files need formatting, vet or linting fails, or
+tests fail.

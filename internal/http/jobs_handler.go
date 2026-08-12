@@ -1,14 +1,13 @@
 package apihttp
 
 import (
+	"3d-api/internal/jobs"
+	"3d-api/internal/response"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"time"
-
-	"3d-api/internal/jobs"
-	"3d-api/internal/response"
 )
 
 type JobsHandler struct {

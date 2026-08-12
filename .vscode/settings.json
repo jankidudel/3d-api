@@ -1,0 +1,12 @@
+{
+  "[go]": {
+    "editor.defaultFormatter": "golang.Go",
+    "editor.formatOnSave": true
+  },
+  "[markdown]": {
+    "editor.formatOnSave": false
+  }
+  //   "go.formatTool": "gofumpt",
+  //   "go.lintTool": "golangci-lint",
+  //   "go.lintOnSave": "package"
+}
