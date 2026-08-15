@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -31,7 +32,7 @@ func main() {
 	uploadSigner := uploads.NewS3Presigner(bucket, s3.NewPresignClient(s3.NewFromConfig(awsConfig)))
 	repository := jobs.NewMemoryRepository()
 	service := jobs.NewService(repository, uploadSigner, 15*time.Minute)
-	handler := apihttp.NewRouter(apihttp.NewJobsHandler(service))
+	handler := apihttp.NewRouter(apihttp.NewJobsHandler(service, slog.Default()))
 
 	server := &http.Server{
 		Addr:              ":" + port(),

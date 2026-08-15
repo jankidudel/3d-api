@@ -3,6 +3,9 @@ package apihttp
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,7 +17,7 @@ import (
 
 func testRouter() http.Handler {
 	service := jobs.NewService(jobs.NewMemoryRepository(), httpStubUploadSigner{}, 15*time.Minute)
-	return NewRouter(NewJobsHandler(service))
+	return NewRouter(NewJobsHandler(service, slog.New(slog.NewTextHandler(io.Discard, nil))))
 }
 
 type httpStubUploadSigner struct{}
@@ -26,6 +29,19 @@ func (httpStubUploadSigner) PresignPut(
 	time.Duration,
 ) (string, string, error) {
 	return "https://uploads.example/presigned", http.MethodPut, nil
+}
+
+type failingUploadSigner struct {
+	err error
+}
+
+func (s failingUploadSigner) PresignPut(
+	context.Context,
+	string,
+	int64,
+	time.Duration,
+) (string, string, error) {
+	return "", "", s.err
 }
 
 func TestHealth(t *testing.T) {
@@ -82,6 +98,27 @@ func TestCreateAndGetJob(t *testing.T) {
 	}
 	if got != created.jobResponse {
 		t.Errorf("GET body = %+v, want %+v", got, created.jobResponse)
+	}
+}
+
+func TestCreateLogsInternalError(t *testing.T) {
+	var logs strings.Builder
+	signingErr := errors.New("credentials unavailable")
+	service := jobs.NewService(jobs.NewMemoryRepository(), failingUploadSigner{err: signingErr}, 15*time.Minute)
+	handler := NewRouter(NewJobsHandler(service, slog.New(slog.NewTextHandler(&logs, nil))))
+	request := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":117884}`))
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusInternalServerError)
+	}
+	if !strings.Contains(logs.String(), "create job failed") || !strings.Contains(logs.String(), signingErr.Error()) {
+		t.Errorf("logs = %q, want operation and underlying error", logs.String())
+	}
+	if strings.Contains(response.Body.String(), signingErr.Error()) {
+		t.Errorf("response leaks internal error: %q", response.Body.String())
 	}
 }
 

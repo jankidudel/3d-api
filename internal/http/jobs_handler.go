@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 type JobsHandler struct {
 	service *jobs.Service
+	logger  *slog.Logger
 }
 
 type createJobRequest struct {
@@ -39,8 +41,8 @@ type uploadResponse struct {
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 
-func NewJobsHandler(service *jobs.Service) *JobsHandler {
-	return &JobsHandler{service: service}
+func NewJobsHandler(service *jobs.Service, logger *slog.Logger) *JobsHandler {
+	return &JobsHandler{service: service, logger: logger}
 }
 
 func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -65,6 +67,7 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusBadRequest, err.Error())
 			return
 		}
+		h.logger.ErrorContext(r.Context(), "create job failed", "error", err)
 		response.Error(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -86,6 +89,7 @@ func (h *JobsHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusNotFound, "job not found")
 			return
 		}
+		h.logger.ErrorContext(r.Context(), "get job failed", "job_id", r.PathValue("id"), "error", err)
 		response.Error(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
