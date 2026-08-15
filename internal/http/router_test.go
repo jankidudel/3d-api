@@ -45,7 +45,7 @@ func (s failingUploadSigner) PresignPut(
 }
 
 func TestHealth(t *testing.T) {
-	request := httptest.NewRequest(http.MethodGet, "/health", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 	response := httptest.NewRecorder()
 
 	testRouter().ServeHTTP(response, request)
@@ -63,7 +63,7 @@ func TestHealth(t *testing.T) {
 
 func TestCreateAndGetJob(t *testing.T) {
 	router := testRouter()
-	createRequest := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":117884}`))
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":117884}`))
 	createResponse := httptest.NewRecorder()
 
 	router.ServeHTTP(createResponse, createRequest)
@@ -85,7 +85,7 @@ func TestCreateAndGetJob(t *testing.T) {
 		t.Errorf("POST upload expiry = %v, want %v", created.Upload.ExpiresAt, want)
 	}
 
-	getRequest := httptest.NewRequest(http.MethodGet, "/jobs/"+created.ID, nil)
+	getRequest := httptest.NewRequest(http.MethodGet, "/api/v1/jobs/"+created.ID, nil)
 	getResponse := httptest.NewRecorder()
 	router.ServeHTTP(getResponse, getRequest)
 
@@ -106,7 +106,7 @@ func TestCreateLogsInternalError(t *testing.T) {
 	signingErr := errors.New("credentials unavailable")
 	service := jobs.NewService(jobs.NewMemoryRepository(), failingUploadSigner{err: signingErr}, 15*time.Minute)
 	handler := NewRouter(NewJobsHandler(service, slog.New(slog.NewTextHandler(&logs, nil))))
-	request := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":117884}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":117884}`))
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
@@ -123,7 +123,7 @@ func TestCreateLogsInternalError(t *testing.T) {
 }
 
 func TestGetMissingJob(t *testing.T) {
-	request := httptest.NewRequest(http.MethodGet, "/jobs/missing", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/jobs/missing", nil)
 	response := httptest.NewRecorder()
 
 	testRouter().ServeHTTP(response, request)
@@ -137,7 +137,7 @@ func TestGetMissingJob(t *testing.T) {
 }
 
 func TestCreateRejectsMalformedJSON(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(`{"fileName":`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":`))
 	response := httptest.NewRecorder()
 
 	testRouter().ServeHTTP(response, request)
@@ -161,7 +161,7 @@ func TestCreateRejectsInvalidInput(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(test.body))
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(test.body))
 			response := httptest.NewRecorder()
 
 			testRouter().ServeHTTP(response, request)
@@ -177,7 +177,7 @@ func TestCreateRejectsInvalidInput(t *testing.T) {
 }
 
 func TestCreateRejectsUnknownFields(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":1,"unexpected":true}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":1,"unexpected":true}`))
 	response := httptest.NewRecorder()
 
 	testRouter().ServeHTTP(response, request)
@@ -188,7 +188,7 @@ func TestCreateRejectsUnknownFields(t *testing.T) {
 }
 
 func TestCreateRejectsMultipleJSONValues(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":1} {}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":1} {}`))
 	response := httptest.NewRecorder()
 
 	testRouter().ServeHTTP(response, request)
@@ -199,7 +199,7 @@ func TestCreateRejectsMultipleJSONValues(t *testing.T) {
 }
 
 func TestRouterRejectsUnsupportedMethod(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPut, "/jobs", nil)
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/jobs", nil)
 	response := httptest.NewRecorder()
 
 	testRouter().ServeHTTP(response, request)
@@ -210,7 +210,7 @@ func TestRouterRejectsUnsupportedMethod(t *testing.T) {
 }
 
 func TestOpenAPIDocument(t *testing.T) {
-	request := httptest.NewRequest(http.MethodGet, "/openapi.yaml", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/openapi.yaml", nil)
 	response := httptest.NewRecorder()
 
 	testRouter().ServeHTTP(response, request)
@@ -230,10 +230,13 @@ func TestOpenAPIDocument(t *testing.T) {
 			t.Errorf("OpenAPI document does not contain %q", path)
 		}
 	}
+	if !strings.Contains(document, "  - url: /api/v1\n") {
+		t.Error("OpenAPI document does not declare the versioned server URL")
+	}
 }
 
 func TestSwaggerUI(t *testing.T) {
-	request := httptest.NewRequest(http.MethodGet, "/swagger/", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/swagger/", nil)
 	response := httptest.NewRecorder()
 
 	testRouter().ServeHTTP(response, request)
@@ -244,7 +247,7 @@ func TestSwaggerUI(t *testing.T) {
 	if response.Header().Get("Content-Type") != "text/html; charset=utf-8" {
 		t.Errorf("Content-Type = %q, want text/html; charset=utf-8", response.Header().Get("Content-Type"))
 	}
-	if !strings.Contains(response.Body.String(), `url: "/openapi.yaml"`) {
+	if !strings.Contains(response.Body.String(), `url: "/api/v1/openapi.yaml"`) {
 		t.Error("Swagger UI does not reference the OpenAPI document")
 	}
 	if !strings.Contains(response.Body.String(), "tryItOutEnabled: true") {
@@ -253,7 +256,7 @@ func TestSwaggerUI(t *testing.T) {
 }
 
 func TestSwaggerRedirect(t *testing.T) {
-	request := httptest.NewRequest(http.MethodGet, "/swagger", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/swagger", nil)
 	response := httptest.NewRecorder()
 
 	testRouter().ServeHTTP(response, request)
@@ -261,7 +264,18 @@ func TestSwaggerRedirect(t *testing.T) {
 	if response.Code != http.StatusMovedPermanently {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusMovedPermanently)
 	}
-	if location := response.Header().Get("Location"); location != "/swagger/" {
-		t.Errorf("Location = %q, want /swagger/", location)
+	if location := response.Header().Get("Location"); location != "/api/swagger/" {
+		t.Errorf("Location = %q, want /api/swagger/", location)
+	}
+}
+
+func TestUnversionedEndpointIsNotFound(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/health", nil)
+	response := httptest.NewRecorder()
+
+	testRouter().ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusNotFound)
 	}
 }

@@ -4,7 +4,7 @@ info:
   description: Creates and retrieves STL quality-check jobs.
   version: 0.1.0
 servers:
-  - url: /
+  - url: /api/v1
 paths:
   /health:
     get:

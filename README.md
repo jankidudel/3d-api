@@ -40,14 +40,14 @@ the server stops.
 With the API running, open the interactive API documentation in a browser:
 
 ```text
-http://localhost:8080/swagger/
+http://localhost:8080/api/swagger/
 ```
 
 Use **Try it out** in the Swagger UI to call the health and job endpoints.
 The raw OpenAPI 3.1 document is available at:
 
 ```text
-http://localhost:8080/openapi.yaml
+http://localhost:8080/api/v1/openapi.yaml
 ```
 
 The UI loads its version-pinned Swagger UI assets from jsDelivr, so the
@@ -70,13 +70,13 @@ For VS Code, install the official Go extension and enable format on save.
 Check service health:
 
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:8080/api/v1/health
 ```
 
 Create a job:
 
 ```bash
-curl -i -X POST http://localhost:8080/jobs \
+curl -i -X POST http://localhost:8080/api/v1/jobs \
   -H 'Content-Type: application/json' \
   -d '{"fileName":"rotor.stl","fileSizeBytes":117884}'
 ```
@@ -96,7 +96,7 @@ for this specific upload.
 Retrieve a job using the `id` returned by the create request:
 
 ```bash
-curl http://localhost:8080/jobs/JOB_ID
+curl http://localhost:8080/api/v1/jobs/JOB_ID
 ```
 
 ## Run tests
@@ -143,7 +143,7 @@ the Swagger/OpenAPI endpoints.
 ## Future processing flow
 
 Once asynchronous processing is implemented, the frontend
-should poll `GET /jobs/{id}` until the job reaches a terminal status. Use a
+should poll `GET /api/v1/jobs/{id}` until the job reaches a terminal status. Use a
 typed status rather than a separate `completed` boolean, for example:
 
 ```json

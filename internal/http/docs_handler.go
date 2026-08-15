@@ -20,7 +20,7 @@ const swaggerUI = `<!doctype html>
   <script>
     window.onload = function () {
       SwaggerUIBundle({
-        url: "/openapi.yaml",
+        url: "/api/v1/openapi.yaml",
         dom_id: "#swagger-ui",
         deepLinking: true,
         displayRequestDuration: true,

@@ -2,15 +2,18 @@ package apihttp
 
 import "net/http"
 
+const apiPrefix = "/api/v1"
+const swaggerPrefix = "/api/swagger"
+
 func NewRouter(jobsHandler *JobsHandler) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", healthHandler)
-	mux.HandleFunc("POST /jobs", jobsHandler.Create)
-	mux.HandleFunc("GET /jobs/{id}", jobsHandler.GetByID)
-	mux.HandleFunc("GET /openapi.yaml", openAPIHandler)
-	mux.HandleFunc("GET /swagger/{$}", swaggerUIHandler)
-	mux.HandleFunc("GET /swagger", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/swagger/", http.StatusMovedPermanently)
+	mux.HandleFunc("GET "+apiPrefix+"/health", healthHandler)
+	mux.HandleFunc("POST "+apiPrefix+"/jobs", jobsHandler.Create)
+	mux.HandleFunc("GET "+apiPrefix+"/jobs/{id}", jobsHandler.GetByID)
+	mux.HandleFunc("GET "+apiPrefix+"/openapi.yaml", openAPIHandler)
+	mux.HandleFunc("GET "+swaggerPrefix+"/{$}", swaggerUIHandler)
+	mux.HandleFunc("GET "+swaggerPrefix, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, swaggerPrefix+"/", http.StatusMovedPermanently)
 	})
 	return mux
 }
