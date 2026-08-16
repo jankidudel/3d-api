@@ -93,6 +93,9 @@ S3 bucket must have a CORS rule that allows `PUT` from the frontend's origin.
 Do not make the bucket public; the presigned URL grants temporary permission
 for this specific upload.
 
+Uploads are limited to 25 MiB (26,214,400 bytes). Larger create-job requests
+return HTTP 413 before an upload URL is issued.
+
 Retrieve a job using the `id` returned by the create request:
 
 ```bash

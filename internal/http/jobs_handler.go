@@ -63,6 +63,10 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		FileSizeBytes: request.FileSizeBytes,
 	})
 	if err != nil {
+		if errors.Is(err, jobs.ErrFileTooLarge) {
+			response.Error(w, http.StatusRequestEntityTooLarge, err.Error())
+			return
+		}
 		if isValidationError(err) {
 			response.Error(w, http.StatusBadRequest, err.Error())
 			return

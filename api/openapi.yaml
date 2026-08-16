@@ -41,6 +41,12 @@ paths:
                 $ref: "#/components/schemas/CreateJobResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "413":
+          description: The declared file size exceeds the 25 MiB upload limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           $ref: "#/components/responses/InternalServerError"
   /jobs/{id}:
@@ -97,6 +103,7 @@ components:
           type: integer
           format: int64
           minimum: 1
+          maximum: 26214400
           example: 117884
     Job:
       type: object

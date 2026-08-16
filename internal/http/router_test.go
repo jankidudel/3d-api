@@ -187,6 +187,17 @@ func TestCreateRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestCreateRejectsOversizedFile(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":26214401}`))
+	response := httptest.NewRecorder()
+
+	testRouter().ServeHTTP(response, request)
+
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusRequestEntityTooLarge)
+	}
+}
+
 func TestCreateRejectsMultipleJSONValues(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":1} {}`))
 	response := httptest.NewRecorder()

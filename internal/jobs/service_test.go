@@ -79,6 +79,7 @@ func TestCreateRejectsInvalidInput(t *testing.T) {
 		{name: "non STL filename", input: CreateInput{FileName: "rotor.obj", FileSizeBytes: 1}, want: ErrFileNameNotSTL},
 		{name: "zero size", input: CreateInput{FileName: "rotor.stl"}, want: ErrFileSizeInvalid},
 		{name: "negative size", input: CreateInput{FileName: "rotor.stl", FileSizeBytes: -1}, want: ErrFileSizeInvalid},
+		{name: "too large", input: CreateInput{FileName: "rotor.stl", FileSizeBytes: MaxUploadSizeBytes + 1}, want: ErrFileTooLarge},
 	}
 
 	for _, test := range tests {

@@ -13,7 +13,10 @@ var (
 	ErrFileNameRequired = errors.New("fileName is required")
 	ErrFileNameNotSTL   = errors.New("fileName must end in .stl")
 	ErrFileSizeInvalid  = errors.New("fileSizeBytes must be greater than 0")
+	ErrFileTooLarge     = errors.New("fileSizeBytes must not exceed 26214400 bytes (25 MiB)")
 )
+
+const MaxUploadSizeBytes int64 = 25 * 1024 * 1024
 
 type Service struct {
 	repository     Repository
@@ -42,6 +45,9 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 	}
 	if input.FileSizeBytes <= 0 {
 		return CreateResult{}, ErrFileSizeInvalid
+	}
+	if input.FileSizeBytes > MaxUploadSizeBytes {
+		return CreateResult{}, ErrFileTooLarge
 	}
 
 	id, err := newID()
