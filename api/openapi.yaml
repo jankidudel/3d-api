@@ -128,9 +128,20 @@ components:
           type: string
           enum:
             - created
+            - processing
+            - completed
+            - failed
         createdAt:
           type: string
           format: date-time
+        report:
+          type: object
+          description: Present when status is completed.
+          additionalProperties: true
+        failure:
+          type: object
+          description: Present when status is failed.
+          additionalProperties: true
     CreateJobResponse:
       allOf:
         - $ref: "#/components/schemas/Job"

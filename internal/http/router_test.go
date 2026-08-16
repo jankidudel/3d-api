@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -96,7 +97,7 @@ func TestCreateAndGetJob(t *testing.T) {
 	if err := json.NewDecoder(getResponse.Body).Decode(&got); err != nil {
 		t.Fatalf("decode GET response: %v", err)
 	}
-	if got != created.jobResponse {
+	if !reflect.DeepEqual(got, created.jobResponse) {
 		t.Errorf("GET body = %+v, want %+v", got, created.jobResponse)
 	}
 }

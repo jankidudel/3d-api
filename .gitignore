@@ -1,6 +1,7 @@
 /3d-api
 *.test
 coverage.out
+/artifacts/
 .env
 .env.*
 !.env.example

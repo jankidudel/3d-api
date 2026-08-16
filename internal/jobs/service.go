@@ -83,6 +83,12 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 }
 
 func (s *Service) GetByID(ctx context.Context, id string) (Job, error) {
+	if len(id) != 32 {
+		return Job{}, ErrNotFound
+	}
+	if _, err := hex.DecodeString(id); err != nil {
+		return Job{}, ErrNotFound
+	}
 	return s.repository.GetByID(ctx, id)
 }
 

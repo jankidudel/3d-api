@@ -1,10 +1,18 @@
 package jobs
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Status string
 
-const StatusCreated Status = "created"
+const (
+	StatusCreated    Status = "created"
+	StatusProcessing Status = "processing"
+	StatusCompleted  Status = "completed"
+	StatusFailed     Status = "failed"
+)
 
 type Job struct {
 	ID            string
@@ -12,6 +20,8 @@ type Job struct {
 	FileSizeBytes int64
 	Status        Status
 	CreatedAt     time.Time
+	Report        json.RawMessage
+	Failure       json.RawMessage
 }
 
 type CreateInput struct {

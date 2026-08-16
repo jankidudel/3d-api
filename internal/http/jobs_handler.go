@@ -23,11 +23,13 @@ type createJobRequest struct {
 }
 
 type jobResponse struct {
-	ID            string      `json:"id"`
-	FileName      string      `json:"fileName"`
-	FileSizeBytes int64       `json:"fileSizeBytes"`
-	Status        jobs.Status `json:"status"`
-	CreatedAt     time.Time   `json:"createdAt"`
+	ID            string          `json:"id"`
+	FileName      string          `json:"fileName"`
+	FileSizeBytes int64           `json:"fileSizeBytes"`
+	Status        jobs.Status     `json:"status"`
+	CreatedAt     time.Time       `json:"createdAt"`
+	Report        json.RawMessage `json:"report,omitempty"`
+	Failure       json.RawMessage `json:"failure,omitempty"`
 }
 
 type createJobResponse struct {
@@ -114,5 +116,7 @@ func toJobResponse(job jobs.Job) jobResponse {
 		FileSizeBytes: job.FileSizeBytes,
 		Status:        job.Status,
 		CreatedAt:     job.CreatedAt,
+		Report:        job.Report,
+		Failure:       job.Failure,
 	}
 }

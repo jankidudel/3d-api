@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ func TestMemoryRepositoryCreatesAndRetrievesJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByID() error = %v", err)
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("GetByID() = %+v, want %+v", got, want)
 	}
 }

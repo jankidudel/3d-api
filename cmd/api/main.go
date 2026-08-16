@@ -11,28 +11,14 @@ import (
 	"syscall"
 	"time"
 
-	apihttp "3d-api/internal/http"
-	"3d-api/internal/jobs"
-	"3d-api/internal/uploads"
-
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"3d-api/internal/application"
 )
 
 func main() {
-	bucket := os.Getenv("S3_BUCKET")
-	if bucket == "" {
-		log.Fatal("S3_BUCKET is required")
-	}
-
-	awsConfig, err := config.LoadDefaultConfig(context.Background())
+	handler, err := application.NewHandler(context.Background(), slog.Default())
 	if err != nil {
-		log.Fatalf("load AWS configuration: %v", err)
+		log.Fatalf("initialize API: %v", err)
 	}
-	uploadSigner := uploads.NewS3Presigner(bucket, s3.NewPresignClient(s3.NewFromConfig(awsConfig)))
-	repository := jobs.NewMemoryRepository()
-	service := jobs.NewService(repository, uploadSigner, 15*time.Minute)
-	handler := apihttp.NewRouter(apihttp.NewJobsHandler(service, slog.Default()))
 
 	server := &http.Server{
 		Addr:              ":" + port(),

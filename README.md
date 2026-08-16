@@ -1,6 +1,6 @@
 # 3d-api
 
-Initial HTTP API for the 3D/STL quality-check service. Jobs are currently kept in memory and are lost when the process stops.
+HTTP API for the 3D/STL quality-check service. Production job metadata and processor reports are stored in S3 under `jobs/{jobId}/`.
 
 ## Run
 
@@ -29,11 +29,11 @@ in the example file.
 
 AWS credentials are loaded through the AWS SDK's standard credential chain,
 including environment variables, shared AWS config/profile files, and IAM
-roles. The API process requires permission to sign `s3:PutObject` requests for
-the configured bucket.
+roles. The API process requires `s3:GetObject` and `s3:PutObject` access to the
+configured bucket's `jobs/*` objects (`HeadObject` is authorized by
+`s3:GetObject`).
 
-Stop the server with `Ctrl+C`. Jobs use in-memory storage and are lost when
-the server stops.
+Stop the server with `Ctrl+C`. Job metadata remains in S3 when the local server stops.
 
 ## Swagger UI
 
@@ -102,6 +102,10 @@ Retrieve a job using the `id` returned by the create request:
 curl http://localhost:8080/api/v1/jobs/JOB_ID
 ```
 
+The API reads `jobs/{job-id}/metadata.json`, reports `processing` once the input
+object exists, and returns `completed` with the JSON report once
+`jobs/{job-id}/report.json` exists.
+
 ## Run tests
 
 Run the complete test suite from the repository root:
@@ -138,16 +142,15 @@ Run formatting validation, vet, linting, and tests together with:
 make check
 ```
 
-Tests cover the jobs service validation and retrieval behavior, the
-thread-safe in-memory repository, concurrent repository access, HTTP routing,
-JSON validation, health checks, job creation/retrieval, error responses, and
-the Swagger/OpenAPI endpoints.
+Tests cover the jobs service validation and retrieval behavior, the S3-backed
+production repository, the thread-safe in-memory test repository, concurrent
+repository access, HTTP routing, JSON validation, health checks, error responses,
+and the Swagger/OpenAPI endpoints.
 
-## Future processing flow
+## Processing flow
 
-Once asynchronous processing is implemented, the frontend
-should poll `GET /api/v1/jobs/{id}` until the job reaches a terminal status. Use a
-typed status rather than a separate `completed` boolean, for example:
+The frontend calls `GET /api/v1/jobs/{id}` to refresh a job. The API returns
+`processing` while the input exists without a report:
 
 ```json
 {
@@ -162,18 +165,24 @@ followed by:
 {
   "id": "...",
   "status": "completed",
-  "report": {},
-  "downloadUrl": "https://..."
+  "report": {}
 }
 ```
 
-Expected statuses are `created`, `uploading`, `queued`, `processing`,
-`completed`, and `failed`. The frontend should stop polling for `completed` or
-`failed`, use a modest delay such as two seconds, and apply backoff if
-processing takes longer. A presigned URL is temporary, so the API should
-generate it when returning a completed result rather than persist it as job
-state. WebSockets or server-sent events can be added later if polling becomes
-too slow or expensive; polling is the simplest appropriate MVP design.
+Statuses are `created`, `processing`, `completed`, and `failed`. On the final SQS
+attempt, the processor stores `jobs/{jobId}/failure.json`; the API returns its
+safe structured error when no completed report exists.
+
+## Package for Lambda
+
+Build the custom-runtime `provided.al2023` artifact with:
+
+```bash
+make package
+```
+
+This runs all checks, cross-compiles `cmd/lambda` for Linux x86_64, and creates
+the ignored `artifacts/3d-api.zip` containing the required `bootstrap` executable.
 
 ## Pre-commit hook
 

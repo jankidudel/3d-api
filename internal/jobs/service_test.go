@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -104,7 +105,7 @@ func TestGetByID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByID() error = %v", err)
 	}
-	if got != result.Job {
+	if !reflect.DeepEqual(got, result.Job) {
 		t.Errorf("GetByID() = %+v, want %+v", got, result.Job)
 	}
 }
