@@ -39,6 +39,8 @@ repository. Avoid unnecessary layers and dependency-injection frameworks.
 ## Coding guidelines
 
 - Prefer simple, idiomatic Go over clever abstractions.
+- Use explicit `{}` blocks for every `if`, `else`, loop, and other control-flow
+  body, including single-statement bodies. Do not write braceless control flow.
 - Use the standard library where practical and keep dependencies minimal.
 - Keep functions and packages focused.
 - Use explicit request and response DTOs for HTTP JSON.

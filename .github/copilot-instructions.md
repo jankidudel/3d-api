@@ -6,6 +6,8 @@ Follow the repository architecture and development guidelines documented in
 When generating Go:
 
 - Prefer simple, idiomatic, maintainable implementations.
+- Use explicit `{}` blocks for every `if`, `else`, loop, and other control-flow
+  body, including single-statement bodies. Do not write braceless control flow.
 - Use the standard library and avoid adding dependencies unless necessary.
 - Keep HTTP concerns in `internal/http` and domain behavior in `internal/jobs`.
 - Use explicit JSON DTOs rather than exposing domain models from handlers.
