@@ -81,20 +81,24 @@ curl -i -X POST http://localhost:8080/api/v1/jobs \
   -d '{"fileName":"rotor.stl","fileSizeBytes":117884}'
 ```
 
-The response includes a presigned upload URL valid for 15 minutes. Upload the
-file directly to S3 using the returned method and URL:
+The response includes a presigned S3 POST form valid for 15 minutes. Submit every
+returned field followed by the file as multipart form data. For example, if the
+response is saved as `job.json`:
 
 ```bash
-curl -X PUT --upload-file rotor.stl 'PRESIGNED_UPLOAD_URL'
+curl $(jq -r '.upload.fields | to_entries[] | "-F \(.key)=\(.value|@sh)"' job.json) \
+  -F 'file=@rotor.stl' "$(jq -r .upload.url job.json)"
 ```
 
 The uploaded object key is `jobs/{job-id}/input.stl`. For browser uploads, the
-S3 bucket must have a CORS rule that allows `PUT` from the frontend's origin.
+S3 bucket must have a CORS rule that allows `POST` from the frontend's origin.
 Do not make the bucket public; the presigned URL grants temporary permission
 for this specific upload.
 
 Uploads are limited to 25 MiB (26,214,400 bytes). Larger create-job requests
-return HTTP 413 before an upload URL is issued.
+return HTTP 413 before an upload form is issued. The signed S3 POST policy also
+contains a `content-length-range` condition, so S3 rejects a form body larger
+than the size declared when the job was created.
 
 Retrieve a job using the `id` returned by the create request:
 

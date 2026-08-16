@@ -38,9 +38,10 @@ type createJobResponse struct {
 }
 
 type uploadResponse struct {
-	URL       string    `json:"url"`
-	Method    string    `json:"method"`
-	ExpiresAt time.Time `json:"expiresAt"`
+	URL       string            `json:"url"`
+	Method    string            `json:"method"`
+	Fields    map[string]string `json:"fields"`
+	ExpiresAt time.Time         `json:"expiresAt"`
 }
 
 func NewJobsHandler(service *jobs.Service, logger *slog.Logger) *JobsHandler {
@@ -83,6 +84,7 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Upload: uploadResponse{
 			URL:       result.Upload.URL,
 			Method:    result.Upload.Method,
+			Fields:    result.Upload.Fields,
 			ExpiresAt: result.Upload.ExpiresAt,
 		},
 	})

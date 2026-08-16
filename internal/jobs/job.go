@@ -32,6 +32,7 @@ type CreateInput struct {
 type Upload struct {
 	URL       string
 	Method    string
+	Fields    map[string]string
 	ExpiresAt time.Time
 }
 

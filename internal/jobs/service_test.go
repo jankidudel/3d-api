@@ -12,27 +12,30 @@ const testUploadLifetime = 15 * time.Minute
 
 type stubUploadSigner struct {
 	url       string
-	method    string
+	fields    map[string]string
 	objectKey string
 	fileSize  int64
 	lifetime  time.Duration
 	err       error
 }
 
-func (s *stubUploadSigner) PresignPut(
+func (s *stubUploadSigner) PresignPost(
 	_ context.Context,
 	objectKey string,
 	fileSizeBytes int64,
 	lifetime time.Duration,
-) (string, string, error) {
+) (string, map[string]string, error) {
 	s.objectKey = objectKey
 	s.fileSize = fileSizeBytes
 	s.lifetime = lifetime
-	return s.url, s.method, s.err
+	return s.url, s.fields, s.err
 }
 
 func newTestService() (*Service, *stubUploadSigner) {
-	signer := &stubUploadSigner{url: "https://uploads.example/presigned", method: "PUT"}
+	signer := &stubUploadSigner{
+		url:    "https://uploads.example/presigned",
+		fields: map[string]string{"policy": "signed-policy"},
+	}
 	return NewService(NewMemoryRepository(), signer, testUploadLifetime), signer
 }
 
@@ -62,7 +65,7 @@ func TestCreateValidJob(t *testing.T) {
 	if signer.lifetime != testUploadLifetime {
 		t.Errorf("signed lifetime = %v, want %v", signer.lifetime, testUploadLifetime)
 	}
-	if result.Upload.URL != signer.url || result.Upload.Method != signer.method {
+	if result.Upload.URL != signer.url || result.Upload.Method != "POST" || !reflect.DeepEqual(result.Upload.Fields, signer.fields) {
 		t.Errorf("Upload = %+v", result.Upload)
 	}
 	if want := job.CreatedAt.Add(testUploadLifetime); !result.Upload.ExpiresAt.Equal(want) {

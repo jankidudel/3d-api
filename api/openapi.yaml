@@ -156,16 +156,22 @@ components:
       required:
         - url
         - method
+        - fields
         - expiresAt
       properties:
         url:
           type: string
           format: uri
-          description: Presigned S3 URL for uploading the STL file.
+          description: Presigned S3 form action for uploading the STL file.
         method:
           type: string
           enum:
-            - PUT
+            - POST
+        fields:
+          type: object
+          description: Fields that must be included before the file in the multipart form data.
+          additionalProperties:
+            type: string
         expiresAt:
           type: string
           format: date-time

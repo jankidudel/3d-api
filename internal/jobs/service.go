@@ -25,7 +25,7 @@ type Service struct {
 }
 
 type UploadSigner interface {
-	PresignPut(ctx context.Context, objectKey string, fileSizeBytes int64, lifetime time.Duration) (url string, method string, err error)
+	PresignPost(ctx context.Context, objectKey string, fileSizeBytes int64, lifetime time.Duration) (url string, fields map[string]string, err error)
 }
 
 func NewService(repository Repository, uploadSigner UploadSigner, uploadLifetime time.Duration) *Service {
@@ -64,7 +64,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 		CreatedAt:     createdAt,
 	}
 
-	url, method, err := s.uploadSigner.PresignPut(ctx, "jobs/"+id+"/input.stl", input.FileSizeBytes, s.uploadLifetime)
+	url, fields, err := s.uploadSigner.PresignPost(ctx, "jobs/"+id+"/input.stl", input.FileSizeBytes, s.uploadLifetime)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -76,7 +76,8 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 		Job: job,
 		Upload: Upload{
 			URL:       url,
-			Method:    method,
+			Method:    "POST",
+			Fields:    fields,
 			ExpiresAt: createdAt.Add(s.uploadLifetime),
 		},
 	}, nil

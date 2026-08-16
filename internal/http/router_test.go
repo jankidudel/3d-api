@@ -23,26 +23,26 @@ func testRouter() http.Handler {
 
 type httpStubUploadSigner struct{}
 
-func (httpStubUploadSigner) PresignPut(
+func (httpStubUploadSigner) PresignPost(
 	context.Context,
 	string,
 	int64,
 	time.Duration,
-) (string, string, error) {
-	return "https://uploads.example/presigned", http.MethodPut, nil
+) (string, map[string]string, error) {
+	return "https://uploads.example/presigned", map[string]string{"policy": "signed-policy"}, nil
 }
 
 type failingUploadSigner struct {
 	err error
 }
 
-func (s failingUploadSigner) PresignPut(
+func (s failingUploadSigner) PresignPost(
 	context.Context,
 	string,
 	int64,
 	time.Duration,
-) (string, string, error) {
-	return "", "", s.err
+) (string, map[string]string, error) {
+	return "", nil, s.err
 }
 
 func TestHealth(t *testing.T) {
@@ -79,8 +79,11 @@ func TestCreateAndGetJob(t *testing.T) {
 	if created.ID == "" || created.FileName != "rotor.stl" || created.FileSizeBytes != 117884 || created.Status != jobs.StatusCreated {
 		t.Errorf("POST body = %+v", created)
 	}
-	if created.Upload.URL != "https://uploads.example/presigned" || created.Upload.Method != http.MethodPut {
+	if created.Upload.URL != "https://uploads.example/presigned" || created.Upload.Method != http.MethodPost {
 		t.Errorf("POST upload = %+v", created.Upload)
+	}
+	if created.Upload.Fields["policy"] != "signed-policy" {
+		t.Errorf("POST upload fields = %+v", created.Upload.Fields)
 	}
 	if want := created.CreatedAt.Add(15 * time.Minute); !created.Upload.ExpiresAt.Equal(want) {
 		t.Errorf("POST upload expiry = %v, want %v", created.Upload.ExpiresAt, want)
