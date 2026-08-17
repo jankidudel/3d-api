@@ -49,7 +49,6 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 	if input.FileSizeBytes > MaxUploadSizeBytes {
 		return CreateResult{}, ErrFileTooLarge
 	}
-
 	id, err := newID()
 	if err != nil {
 		return CreateResult{}, err

@@ -98,7 +98,8 @@ for this specific upload.
 Uploads are limited to 25 MiB (26,214,400 bytes). Larger create-job requests
 return HTTP 413 before an upload form is issued. The signed S3 POST policy also
 contains a `content-length-range` condition, so S3 rejects a form body larger
-than the size declared when the job was created.
+than the size declared when the job was created. The processor independently
+rejects actual objects larger than 25 MiB before downloading them.
 
 Retrieve a job using the `id` returned by the create request:
 
