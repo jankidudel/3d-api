@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 
@@ -45,6 +46,7 @@ func (a adapter) Handle(ctx context.Context, event events.APIGatewayV2HTTPReques
 	for name, value := range event.Headers {
 		request.Header.Set(name, value)
 	}
+	request.RemoteAddr = net.JoinHostPort(event.RequestContext.HTTP.SourceIP, "0")
 	recorder := httptest.NewRecorder()
 	a.handler.ServeHTTP(recorder, request)
 	result := recorder.Result()

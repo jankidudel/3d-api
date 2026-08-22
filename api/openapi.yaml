@@ -46,7 +46,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/CodedErrorResponse"
+        "429":
+          description: The anonymous free upload limit has been reached.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedErrorResponse"
         "500":
           $ref: "#/components/responses/InternalServerError"
   /jobs/{id}:
@@ -182,6 +192,20 @@ components:
       properties:
         error:
           type: string
+    CodedErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum: [FILE_TOO_LARGE, RATE_LIMITED]
+        message:
+          type: string
+        retryAfterSeconds:
+          type: integer
+          minimum: 1
   responses:
     BadRequest:
       description: The request is invalid.

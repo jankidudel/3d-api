@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -13,10 +14,14 @@ var (
 	ErrFileNameRequired = errors.New("fileName is required")
 	ErrFileNameNotSTL   = errors.New("fileName must end in .stl")
 	ErrFileSizeInvalid  = errors.New("fileSizeBytes must be greater than 0")
-	ErrFileTooLarge     = errors.New("fileSizeBytes must not exceed 26214400 bytes (25 MiB)")
+	ErrFileTooLarge     = fmt.Errorf("fileSizeBytes must not exceed %d bytes (%d MiB)", MaxUploadSizeBytes, MaxUploadSizeMiB)
 )
 
-const MaxUploadSizeBytes int64 = 25 * 1024 * 1024
+const (
+	MaxUploadSizeMiB    int64 = 25
+	MaxUploadSizeBytes        = MaxUploadSizeMiB * 1024 * 1024
+	FileTooLargeMessage       = "Files must be 25 MB or smaller."
+)
 
 type Service struct {
 	repository     Repository
@@ -37,17 +42,8 @@ func NewService(repository Repository, uploadSigner UploadSigner, uploadLifetime
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, error) {
-	if strings.TrimSpace(input.FileName) == "" {
-		return CreateResult{}, ErrFileNameRequired
-	}
-	if !strings.HasSuffix(strings.ToLower(input.FileName), ".stl") {
-		return CreateResult{}, ErrFileNameNotSTL
-	}
-	if input.FileSizeBytes <= 0 {
-		return CreateResult{}, ErrFileSizeInvalid
-	}
-	if input.FileSizeBytes > MaxUploadSizeBytes {
-		return CreateResult{}, ErrFileTooLarge
+	if err := ValidateCreateInput(input); err != nil {
+		return CreateResult{}, err
 	}
 	id, err := newID()
 	if err != nil {
@@ -80,6 +76,22 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 			ExpiresAt: createdAt.Add(s.uploadLifetime),
 		},
 	}, nil
+}
+
+func ValidateCreateInput(input CreateInput) error {
+	if strings.TrimSpace(input.FileName) == "" {
+		return ErrFileNameRequired
+	}
+	if !strings.HasSuffix(strings.ToLower(input.FileName), ".stl") {
+		return ErrFileNameNotSTL
+	}
+	if input.FileSizeBytes <= 0 {
+		return ErrFileSizeInvalid
+	}
+	if input.FileSizeBytes > MaxUploadSizeBytes {
+		return ErrFileTooLarge
+	}
+	return nil
 }
 
 func (s *Service) GetByID(ctx context.Context, id string) (Job, error) {

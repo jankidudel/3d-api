@@ -97,6 +97,13 @@ func TestCreateRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestCreateAcceptsExactlyMaximumUploadSize(t *testing.T) {
+	service, _ := newTestService()
+	if _, err := service.Create(context.Background(), CreateInput{FileName: "rotor.stl", FileSizeBytes: MaxUploadSizeBytes}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+}
+
 func TestGetByID(t *testing.T) {
 	service, _ := newTestService()
 	result, err := service.Create(context.Background(), CreateInput{FileName: "rotor.stl", FileSizeBytes: 12})

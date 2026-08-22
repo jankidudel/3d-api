@@ -9,16 +9,38 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"3d-api/internal/jobs"
+	"3d-api/internal/ratelimit"
 )
 
 func testRouter() http.Handler {
 	service := jobs.NewService(jobs.NewMemoryRepository(), httpStubUploadSigner{}, 15*time.Minute)
-	return NewRouter(NewJobsHandler(service, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	return NewRouter(NewJobsHandler(service, nil, slog.New(slog.NewTextHandler(io.Discard, nil))))
+}
+
+type testRateStore struct {
+	mu     sync.Mutex
+	counts map[string]int
+}
+
+func (s *testRateStore) Consume(_ context.Context, windows []ratelimit.Window) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, window := range windows {
+		if s.counts[window.Key] >= window.Limit {
+			return ratelimit.ErrLimited
+		}
+	}
+	for _, window := range windows {
+		s.counts[window.Key]++
+	}
+	return nil
 }
 
 type httpStubUploadSigner struct{}
@@ -109,7 +131,7 @@ func TestCreateLogsInternalError(t *testing.T) {
 	var logs strings.Builder
 	signingErr := errors.New("credentials unavailable")
 	service := jobs.NewService(jobs.NewMemoryRepository(), failingUploadSigner{err: signingErr}, 15*time.Minute)
-	handler := NewRouter(NewJobsHandler(service, slog.New(slog.NewTextHandler(&logs, nil))))
+	handler := NewRouter(NewJobsHandler(service, nil, slog.New(slog.NewTextHandler(&logs, nil))))
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":117884}`))
 	response := httptest.NewRecorder()
 
@@ -192,13 +214,44 @@ func TestCreateRejectsUnknownFields(t *testing.T) {
 }
 
 func TestCreateRejectsOversizedFile(t *testing.T) {
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":26214401}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":`+strconv.FormatInt(jobs.MaxUploadSizeBytes+1, 10)+`}`))
 	response := httptest.NewRecorder()
 
 	testRouter().ServeHTTP(response, request)
 
 	if response.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusRequestEntityTooLarge)
+	}
+	if response.Body.String() != `{"code":"FILE_TOO_LARGE","message":"`+jobs.FileTooLargeMessage+`"}`+"\n" {
+		t.Errorf("body = %q", response.Body.String())
+	}
+}
+
+func TestCreateReturnsRateLimitWithoutCreatingOrPollingJob(t *testing.T) {
+	service := jobs.NewService(jobs.NewMemoryRepository(), httpStubUploadSigner{}, 15*time.Minute)
+	limiter := ratelimit.New(&testRateStore{counts: map[string]int{}}, "test-secret")
+	handler := NewRouter(NewJobsHandler(service, limiter, slog.New(slog.NewTextHandler(io.Discard, nil))))
+	for range ratelimit.MaxAcceptedJobsPerHour {
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":1}`))
+		request.RemoteAddr = "203.0.113.8:1"
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d", response.Code, http.StatusCreated)
+		}
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":1}`))
+	request.RemoteAddr = "203.0.113.8:1"
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusTooManyRequests)
+	}
+	if response.Header().Get("Retry-After") == "" {
+		t.Error("Retry-After header is missing")
+	}
+	if !strings.Contains(response.Body.String(), `"code":"RATE_LIMITED"`) {
+		t.Errorf("body = %q", response.Body.String())
 	}
 }
 

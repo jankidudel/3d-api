@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"3d-api/internal/jobs"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
@@ -29,7 +31,7 @@ func (p *S3Presigner) PresignPost(
 	}, func(options *s3.PresignPostOptions) {
 		options.Expires = lifetime
 		options.Conditions = []any{
-			[]any{"content-length-range", 1, fileSizeBytes},
+			[]any{"content-length-range", 1, jobs.MaxUploadSizeBytes},
 		}
 	})
 	if err != nil {

@@ -6,14 +6,17 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"3d-api/internal/jobs"
+	"3d-api/internal/ratelimit"
 	"3d-api/internal/response"
 )
 
 type JobsHandler struct {
 	service *jobs.Service
+	limiter *ratelimit.Limiter
 	logger  *slog.Logger
 }
 
@@ -44,8 +47,8 @@ type uploadResponse struct {
 	ExpiresAt time.Time         `json:"expiresAt"`
 }
 
-func NewJobsHandler(service *jobs.Service, logger *slog.Logger) *JobsHandler {
-	return &JobsHandler{service: service, logger: logger}
+func NewJobsHandler(service *jobs.Service, limiter *ratelimit.Limiter, logger *slog.Logger) *JobsHandler {
+	return &JobsHandler{service: service, limiter: limiter, logger: logger}
 }
 
 func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -61,15 +64,35 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.service.Create(r.Context(), jobs.CreateInput{
+	input := jobs.CreateInput{
 		FileName:      request.FileName,
 		FileSizeBytes: request.FileSizeBytes,
-	})
-	if err != nil {
+	}
+	if err := jobs.ValidateCreateInput(input); err != nil {
 		if errors.Is(err, jobs.ErrFileTooLarge) {
-			response.Error(w, http.StatusRequestEntityTooLarge, err.Error())
+			response.CodedError(w, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", jobs.FileTooLargeMessage, nil)
 			return
 		}
+		response.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if h.limiter != nil {
+		retryAfter, err := h.limiter.Allow(r.Context(), r.RemoteAddr)
+		if errors.Is(err, ratelimit.ErrLimited) {
+			seconds := max(1, int(retryAfter.Seconds()))
+			w.Header().Set("Retry-After", strconv.Itoa(seconds))
+			response.CodedError(w, http.StatusTooManyRequests, "RATE_LIMITED", "You have reached the free upload limit. Please try again later.", &seconds)
+			return
+		}
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "rate limit failed", "error", err)
+			response.Error(w, http.StatusInternalServerError, "internal server error")
+			return
+		}
+	}
+
+	result, err := h.service.Create(r.Context(), input)
+	if err != nil {
 		if isValidationError(err) {
 			response.Error(w, http.StatusBadRequest, err.Error())
 			return

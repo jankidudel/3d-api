@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"3d-api/internal/jobs"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -53,7 +55,7 @@ func TestS3PresignerCreatesSizeLimitedPostRequest(t *testing.T) {
 	if err := json.Unmarshal(policyJSON, &policy); err != nil {
 		t.Fatalf("parse policy: %v", err)
 	}
-	wantCondition := []any{"content-length-range", float64(1), float64(117884)}
+	wantCondition := []any{"content-length-range", float64(1), float64(jobs.MaxUploadSizeBytes)}
 	found := false
 	for _, condition := range policy.Conditions {
 		if values, ok := condition.([]any); ok && len(values) == 3 &&
