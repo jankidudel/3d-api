@@ -29,17 +29,13 @@ type testRateStore struct {
 	counts map[string]int
 }
 
-func (s *testRateStore) Consume(_ context.Context, windows []ratelimit.Window) error {
+func (s *testRateStore) Consume(_ context.Context, key string, _ time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, window := range windows {
-		if s.counts[window.Key] >= window.Limit {
-			return ratelimit.ErrLimited
-		}
+	if s.counts[key] >= ratelimit.MaxAcceptedJobsPerHour {
+		return ratelimit.ErrLimited
 	}
-	for _, window := range windows {
-		s.counts[window.Key]++
-	}
+	s.counts[key]++
 	return nil
 }
 
@@ -247,8 +243,8 @@ func TestCreateReturnsRateLimitWithoutCreatingOrPollingJob(t *testing.T) {
 	if response.Code != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusTooManyRequests)
 	}
-	if response.Header().Get("Retry-After") == "" {
-		t.Error("Retry-After header is missing")
+	if response.Header().Get("Retry-After") != "" {
+		t.Error("Retry-After header must not be returned")
 	}
 	if !strings.Contains(response.Body.String(), `"code":"`+ErrorCodeRateLimited+`"`) {
 		t.Errorf("body = %q", response.Body.String())

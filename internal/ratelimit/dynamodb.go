@@ -4,13 +4,17 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
+const maxWriteRetries = 8
+
 type DynamoClient interface {
-	TransactWriteItems(context.Context, *dynamodb.TransactWriteItemsInput, ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
+	GetItem(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
+	UpdateItem(context.Context, *dynamodb.UpdateItemInput, ...func(*dynamodb.Options)) (*dynamodb.UpdateItemOutput, error)
 }
 type DynamoStore struct {
 	table  string
@@ -20,27 +24,77 @@ type DynamoStore struct {
 func NewDynamoStore(table string, client DynamoClient) *DynamoStore {
 	return &DynamoStore{table: table, client: client}
 }
-func (s *DynamoStore) Consume(ctx context.Context, windows []Window) error {
-	items := make([]types.TransactWriteItem, 0, len(windows))
-	for _, window := range windows {
-		items = append(items, types.TransactWriteItem{Update: &types.Update{
-			TableName: &s.table, Key: map[string]types.AttributeValue{"windowKey": &types.AttributeValueMemberS{Value: window.Key}},
-			UpdateExpression: str("ADD #count :one SET expiresAt = :expires"), ConditionExpression: str("attribute_not_exists(#count) OR #count < :limit"),
-			ExpressionAttributeNames: map[string]string{"#count": "count"}, ExpressionAttributeValues: map[string]types.AttributeValue{
-				":one": &types.AttributeValueMemberN{Value: "1"}, ":limit": &types.AttributeValueMemberN{Value: strconv.Itoa(window.Limit)}, ":expires": &types.AttributeValueMemberN{Value: strconv.FormatInt(window.ExpiresAt.Unix(), 10)},
-			},
-		}})
-	}
-	_, err := s.client.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: items})
-	var canceled *types.TransactionCanceledException
-	if errors.As(err, &canceled) {
-		for index, reason := range canceled.CancellationReasons {
-			if reason.Code != nil && *reason.Code == "ConditionalCheckFailed" && index < len(windows) {
-				return &LimitedError{RetryAt: windows[index].RetryAt}
+
+func (s *DynamoStore) Consume(ctx context.Context, id string, now time.Time) error {
+	key := map[string]types.AttributeValue{"windowKey": &types.AttributeValueMemberS{Value: "ip#" + id}}
+	for attempt := 0; attempt < maxWriteRetries; attempt++ {
+		got, err := s.client.GetItem(ctx, &dynamodb.GetItemInput{TableName: &s.table, Key: key, ConsistentRead: boolp(true)})
+		if err != nil {
+			return err
+		}
+		timestamps, version := decode(got.Item)
+		cutoff := now.Add(-RollingDay)
+		kept := timestamps[:0]
+		for _, timestamp := range timestamps {
+			if timestamp.After(cutoff) {
+				kept = append(kept, timestamp)
 			}
 		}
-		return ErrLimited
+		hourly := 0
+		hourCutoff := now.Add(-RollingHour)
+		for _, timestamp := range kept {
+			if timestamp.After(hourCutoff) {
+				hourly++
+			}
+		}
+		if hourly >= MaxAcceptedJobsPerHour || len(kept) >= MaxAcceptedJobsPerDay {
+			return ErrLimited
+		}
+		kept = append(kept, now) // daily guard means this can never exceed 30.
+		values := map[string]types.AttributeValue{
+			":timestamps": &types.AttributeValueMemberL{Value: times(kept)},
+			":expires":    &types.AttributeValueMemberN{Value: strconv.FormatInt(kept[len(kept)-1].Add(RollingDay).Unix(), 10)},
+			":next":       &types.AttributeValueMemberN{Value: strconv.FormatInt(version+1, 10)},
+			":version":    &types.AttributeValueMemberN{Value: strconv.FormatInt(version, 10)},
+		}
+		condition := "attribute_not_exists(#version)"
+		if got.Item != nil {
+			condition = "#version = :version"
+		}
+		_, err = s.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{TableName: &s.table, Key: key, UpdateExpression: str("SET #timestamps = :timestamps, expiresAt = :expires, #version = :next"), ConditionExpression: str(condition), ExpressionAttributeNames: map[string]string{"#timestamps": "timestamps", "#version": "version"}, ExpressionAttributeValues: values})
+		if err == nil {
+			return nil
+		}
+		var conditional *types.ConditionalCheckFailedException
+		if !errors.As(err, &conditional) {
+			return err
+		}
 	}
-	return err
+	return errors.New("rate limit contention exceeded retry budget")
+}
+func decode(item map[string]types.AttributeValue) ([]time.Time, int64) {
+	var result []time.Time
+	var version int64
+	if v, ok := item["timestamps"].(*types.AttributeValueMemberL); ok {
+		for _, x := range v.Value {
+			if n, ok := x.(*types.AttributeValueMemberN); ok {
+				if seconds, err := strconv.ParseInt(n.Value, 10, 64); err == nil {
+					result = append(result, time.Unix(seconds, 0).UTC())
+				}
+			}
+		}
+	}
+	if v, ok := item["version"].(*types.AttributeValueMemberN); ok {
+		version, _ = strconv.ParseInt(v.Value, 10, 64)
+	}
+	return result, version
+}
+func times(values []time.Time) []types.AttributeValue {
+	result := make([]types.AttributeValue, 0, len(values))
+	for _, value := range values {
+		result = append(result, &types.AttributeValueMemberN{Value: strconv.FormatInt(value.Unix(), 10)})
+	}
+	return result
 }
 func str(value string) *string { return &value }
+func boolp(value bool) *bool   { return &value }

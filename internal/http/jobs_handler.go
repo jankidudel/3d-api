@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"3d-api/internal/jobs"
@@ -77,11 +76,9 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.limiter != nil {
-		retryAfter, err := h.limiter.Allow(r.Context(), r.RemoteAddr)
+		_, err := h.limiter.Allow(r.Context(), r.RemoteAddr)
 		if errors.Is(err, ratelimit.ErrLimited) {
-			seconds := max(1, int(retryAfter.Seconds()))
-			w.Header().Set("Retry-After", strconv.Itoa(seconds))
-			response.CodedError(w, http.StatusTooManyRequests, ErrorCodeRateLimited, RateLimitedMessage, &seconds)
+			response.CodedError(w, http.StatusTooManyRequests, ErrorCodeRateLimited, RateLimitedMessage, nil)
 			return
 		}
 		if err != nil {
