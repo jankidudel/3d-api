@@ -70,7 +70,7 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := jobs.ValidateCreateInput(input); err != nil {
 		if errors.Is(err, jobs.ErrFileTooLarge) {
-			response.CodedError(w, http.StatusRequestEntityTooLarge, "FILE_TOO_LARGE", jobs.FileTooLargeMessage, nil)
+			response.CodedError(w, http.StatusRequestEntityTooLarge, ErrorCodeFileTooLarge, jobs.FileTooLargeMessage, nil)
 			return
 		}
 		response.Error(w, http.StatusBadRequest, err.Error())
@@ -81,12 +81,12 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, ratelimit.ErrLimited) {
 			seconds := max(1, int(retryAfter.Seconds()))
 			w.Header().Set("Retry-After", strconv.Itoa(seconds))
-			response.CodedError(w, http.StatusTooManyRequests, "RATE_LIMITED", "You have reached the free upload limit. Please try again later.", &seconds)
+			response.CodedError(w, http.StatusTooManyRequests, ErrorCodeRateLimited, RateLimitedMessage, &seconds)
 			return
 		}
 		if err != nil {
 			h.logger.ErrorContext(r.Context(), "rate limit failed", "error", err)
-			response.Error(w, http.StatusInternalServerError, "internal server error")
+			response.CodedError(w, http.StatusServiceUnavailable, ErrorCodeRateLimitUnavailable, RateLimitUnavailableMessage, nil)
 			return
 		}
 	}

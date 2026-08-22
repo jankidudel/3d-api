@@ -200,7 +200,7 @@ components:
       properties:
         code:
           type: string
-          enum: [FILE_TOO_LARGE, RATE_LIMITED]
+          enum: [FILE_TOO_LARGE, RATE_LIMITED, RATE_LIMIT_UNAVAILABLE]
         message:
           type: string
         retryAfterSeconds:

@@ -222,7 +222,7 @@ func TestCreateRejectsOversizedFile(t *testing.T) {
 	if response.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusRequestEntityTooLarge)
 	}
-	if response.Body.String() != `{"code":"FILE_TOO_LARGE","message":"`+jobs.FileTooLargeMessage+`"}`+"\n" {
+	if response.Body.String() != `{"code":"`+ErrorCodeFileTooLarge+`","message":"`+jobs.FileTooLargeMessage+`"}`+"\n" {
 		t.Errorf("body = %q", response.Body.String())
 	}
 }
@@ -250,7 +250,7 @@ func TestCreateReturnsRateLimitWithoutCreatingOrPollingJob(t *testing.T) {
 	if response.Header().Get("Retry-After") == "" {
 		t.Error("Retry-After header is missing")
 	}
-	if !strings.Contains(response.Body.String(), `"code":"RATE_LIMITED"`) {
+	if !strings.Contains(response.Body.String(), `"code":"`+ErrorCodeRateLimited+`"`) {
 		t.Errorf("body = %q", response.Body.String())
 	}
 }
