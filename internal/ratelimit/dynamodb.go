@@ -55,11 +55,11 @@ func (s *DynamoStore) Consume(ctx context.Context, id string, now time.Time) err
 			":timestamps": &types.AttributeValueMemberL{Value: times(kept)},
 			":expires":    &types.AttributeValueMemberN{Value: strconv.FormatInt(kept[len(kept)-1].Add(RollingDay).Unix(), 10)},
 			":next":       &types.AttributeValueMemberN{Value: strconv.FormatInt(version+1, 10)},
-			":version":    &types.AttributeValueMemberN{Value: strconv.FormatInt(version, 10)},
 		}
 		condition := "attribute_not_exists(#version)"
 		if got.Item != nil {
 			condition = "#version = :version"
+			values[":version"] = &types.AttributeValueMemberN{Value: strconv.FormatInt(version, 10)}
 		}
 		_, err = s.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{TableName: &s.table, Key: key, UpdateExpression: str("SET #timestamps = :timestamps, expiresAt = :expires, #version = :next"), ConditionExpression: str(condition), ExpressionAttributeNames: map[string]string{"#timestamps": "timestamps", "#version": "version"}, ExpressionAttributeValues: values})
 		if err == nil {
