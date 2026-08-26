@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+// @todo: review, why is it named "New*" ?
 func NewHandler(ctx context.Context, logger *slog.Logger) (http.Handler, error) {
 	bucket := os.Getenv("S3_BUCKET")
 	if bucket == "" {
@@ -37,5 +38,8 @@ func NewHandler(ctx context.Context, logger *slog.Logger) (http.Handler, error) 
 	uploadSigner := uploads.NewS3Presigner(bucket, s3.NewPresignClient(s3Client))
 	repository := jobs.NewS3Repository(bucket, s3Client)
 	service := jobs.NewService(repository, uploadSigner, 15*time.Minute)
-	return apihttp.NewRouter(apihttp.NewJobsHandler(service, limiter, logger)), nil
+	return apihttp.NewRouter(
+		apihttp.NewJobsHandler(service, limiter, logger),
+		os.Getenv("ENABLE_API_DOCUMENTATION") != "false",
+	), nil
 }
