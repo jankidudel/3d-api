@@ -6,6 +6,12 @@ import (
 )
 
 type Status string
+type FileFormat string
+
+const (
+	FileFormatSTL FileFormat = "stl"
+	FileFormat3MF FileFormat = "3mf"
+)
 
 const (
 	StatusCreated    Status = "created"
@@ -17,6 +23,7 @@ const (
 type Job struct {
 	ID            string
 	FileName      string
+	FileFormat    FileFormat
 	FileSizeBytes int64
 	Status        Status
 	CreatedAt     time.Time
@@ -27,6 +34,7 @@ type Job struct {
 type CreateInput struct {
 	FileName      string
 	FileSizeBytes int64
+	FileFormat    FileFormat
 }
 
 type Upload struct {

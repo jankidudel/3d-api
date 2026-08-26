@@ -28,6 +28,7 @@ type jobResponse struct {
 	ID            string          `json:"id"`
 	FileName      string          `json:"fileName"`
 	FileSizeBytes int64           `json:"fileSizeBytes"`
+	FileFormat    jobs.FileFormat `json:"fileFormat"`
 	Status        jobs.Status     `json:"status"`
 	CreatedAt     time.Time       `json:"createdAt"`
 	Report        json.RawMessage `json:"report,omitempty"`
@@ -51,6 +52,14 @@ func NewJobsHandler(service *jobs.Service, limiter *ratelimit.Limiter, logger *s
 }
 
 func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
+	h.createForFormat(jobs.FileFormatSTL, w, r)
+}
+
+func (h *JobsHandler) Create3MF(w http.ResponseWriter, r *http.Request) {
+	h.createForFormat(jobs.FileFormat3MF, w, r)
+}
+
+func (h *JobsHandler) createForFormat(format jobs.FileFormat, w http.ResponseWriter, r *http.Request) {
 	var request createJobRequest
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -66,6 +75,7 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	input := jobs.CreateInput{
 		FileName:      request.FileName,
 		FileSizeBytes: request.FileSizeBytes,
+		FileFormat:    format,
 	}
 	if err := jobs.ValidateCreateInput(input); err != nil {
 		if errors.Is(err, jobs.ErrFileTooLarge) {
@@ -128,6 +138,7 @@ func (h *JobsHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 func isValidationError(err error) bool {
 	return errors.Is(err, jobs.ErrFileNameRequired) ||
 		errors.Is(err, jobs.ErrFileNameNotSTL) ||
+		errors.Is(err, jobs.ErrFileNameNot3MF) ||
 		errors.Is(err, jobs.ErrFileSizeInvalid)
 }
 
@@ -136,6 +147,7 @@ func toJobResponse(job jobs.Job) jobResponse {
 		ID:            job.ID,
 		FileName:      job.FileName,
 		FileSizeBytes: job.FileSizeBytes,
+		FileFormat:    job.FileFormat,
 		Status:        job.Status,
 		CreatedAt:     job.CreatedAt,
 		Report:        job.Report,

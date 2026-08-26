@@ -94,3 +94,22 @@ func TestS3RepositoryReturnsNotFoundForMissingMetadata(t *testing.T) {
 		t.Fatalf("GetByID() error = %v, want ErrNotFound", err)
 	}
 }
+
+func TestS3RepositoryTracksThreeMfInputUsingStoredFormat(t *testing.T) {
+	ctx := context.Background()
+	client := newFakeS3RepositoryClient()
+	repository := NewS3Repository("bucket", client)
+	job := Job{
+		ID: "0123456789abcdef0123456789abcdef", FileName: "model.3mf", FileSizeBytes: 42,
+		FileFormat: FileFormat3MF, Status: StatusCreated, CreatedAt: time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC),
+	}
+	if err := repository.Create(ctx, job); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	client.objects[jobObjectKey(job.ID, "input.3mf")] = []byte("3mf")
+	stored, err := repository.GetByID(ctx, job.ID)
+	if err != nil || stored.Status != StatusProcessing || stored.FileFormat != FileFormat3MF {
+		t.Fatalf("stored job = %+v, error = %v", stored, err)
+	}
+}

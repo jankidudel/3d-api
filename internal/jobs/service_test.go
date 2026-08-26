@@ -73,6 +73,25 @@ func TestCreateValidJob(t *testing.T) {
 	}
 }
 
+func TestCreateThreeMfJobUsesTrustedFormat(t *testing.T) {
+	service, signer := newTestService()
+	result, err := service.Create(context.Background(), CreateInput{FileName: "part.3MF", FileSizeBytes: 12, FileFormat: FileFormat3MF})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if result.Job.FileFormat != FileFormat3MF || signer.objectKey != "jobs/"+result.Job.ID+"/input.3mf" {
+		t.Errorf("3MF job = %+v, object key = %q", result.Job, signer.objectKey)
+	}
+}
+
+func TestCreateThreeMfJobRejectsStlName(t *testing.T) {
+	service, _ := newTestService()
+	_, err := service.Create(context.Background(), CreateInput{FileName: "part.stl", FileSizeBytes: 12, FileFormat: FileFormat3MF})
+	if !errors.Is(err, ErrFileNameNot3MF) {
+		t.Errorf("Create() error = %v, want %v", err, ErrFileNameNot3MF)
+	}
+}
+
 func TestCreateRejectsInvalidInput(t *testing.T) {
 	tests := []struct {
 		name  string

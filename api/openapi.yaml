@@ -87,6 +87,40 @@ paths:
                 error: job not found
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /3mf-jobs:
+    post:
+      summary: Create a 3MF quality-check job
+      operationId: createThreeMfJob
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateThreeMfJobRequest"
+            example:
+              fileName: model.3mf
+              fileSizeBytes: 117884
+      responses:
+        "201":
+          description: The 3MF job was created and an upload URL was generated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateJobResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          description: The declared file size exceeds the 25 MiB upload limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedErrorResponse"
+        "429":
+          description: The anonymous free upload limit has been reached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedErrorResponse"
 components:
   schemas:
     HealthResponse:
@@ -115,6 +149,23 @@ components:
           minimum: 1
           maximum: 26214400
           example: 117884
+    CreateThreeMfJobRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - fileName
+        - fileSizeBytes
+      properties:
+        fileName:
+          type: string
+          pattern: "\\.[3][mM][fF]$"
+          example: model.3mf
+        fileSizeBytes:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 26214400
+          example: 117884
     Job:
       type: object
       required:
@@ -134,6 +185,10 @@ components:
           type: integer
           format: int64
           example: 117884
+        fileFormat:
+          type: string
+          enum: [stl, 3mf]
+          description: Trusted server-side format selected by the job endpoint.
         status:
           type: string
           enum:

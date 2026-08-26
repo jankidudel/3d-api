@@ -123,6 +123,37 @@ func TestCreateAndGetJob(t *testing.T) {
 	}
 }
 
+func TestCreateThreeMfJob(t *testing.T) {
+	router := testRouter()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/3mf-jobs", strings.NewReader(`{"fileName":"part.3MF","fileSizeBytes":42}`))
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body = %s", response.Code, http.StatusCreated, response.Body.String())
+	}
+	var created createJobResponse
+	if err := json.NewDecoder(response.Body).Decode(&created); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if created.FileFormat != jobs.FileFormat3MF {
+		t.Errorf("file format = %q, want %q", created.FileFormat, jobs.FileFormat3MF)
+	}
+}
+
+func TestCreateThreeMfJobRejectsStlFile(t *testing.T) {
+	router := testRouter()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/3mf-jobs", strings.NewReader(`{"fileName":"part.stl","fileSizeBytes":42}`))
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), ".3mf") {
+		t.Errorf("status = %d, body = %q", response.Code, response.Body.String())
+	}
+}
+
 func TestCreateLogsInternalError(t *testing.T) {
 	var logs strings.Builder
 	signingErr := errors.New("credentials unavailable")

@@ -28,10 +28,11 @@ type S3Repository struct {
 }
 
 type jobMetadata struct {
-	ID            string    `json:"id"`
-	FileName      string    `json:"fileName"`
-	FileSizeBytes int64     `json:"fileSizeBytes"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID            string     `json:"id"`
+	FileName      string     `json:"fileName"`
+	FileFormat    FileFormat `json:"fileFormat"`
+	FileSizeBytes int64      `json:"fileSizeBytes"`
+	CreatedAt     time.Time  `json:"createdAt"`
 }
 
 func NewS3Repository(bucket string, client S3RepositoryClient) *S3Repository {
@@ -40,7 +41,7 @@ func NewS3Repository(bucket string, client S3RepositoryClient) *S3Repository {
 
 func (r *S3Repository) Create(ctx context.Context, job Job) error {
 	metadata, err := json.Marshal(jobMetadata{
-		ID: job.ID, FileName: job.FileName, FileSizeBytes: job.FileSizeBytes, CreatedAt: job.CreatedAt,
+		ID: job.ID, FileName: job.FileName, FileSizeBytes: job.FileSizeBytes, FileFormat: job.FileFormat, CreatedAt: job.CreatedAt,
 	})
 	if err != nil {
 		return err
@@ -71,7 +72,7 @@ func (r *S3Repository) GetByID(ctx context.Context, id string) (Job, error) {
 	}
 
 	job := Job{
-		ID: metadata.ID, FileName: metadata.FileName, FileSizeBytes: metadata.FileSizeBytes,
+		ID: metadata.ID, FileName: metadata.FileName, FileSizeBytes: metadata.FileSizeBytes, FileFormat: metadata.FileFormat,
 		Status: StatusCreated, CreatedAt: metadata.CreatedAt,
 	}
 	reportObject, err := r.client.GetObject(ctx, &s3.GetObjectInput{
@@ -111,8 +112,12 @@ func (r *S3Repository) GetByID(ctx context.Context, id string) (Job, error) {
 		return Job{}, err
 	}
 
+	format := job.FileFormat
+	if format == "" {
+		format = FileFormatSTL
+	}
 	_, err = r.client.HeadObject(ctx, &s3.HeadObjectInput{
-		Bucket: aws.String(r.bucket), Key: aws.String(jobObjectKey(id, "input.stl")),
+		Bucket: aws.String(r.bucket), Key: aws.String(jobObjectKey(id, "input."+string(format))),
 	})
 	if err == nil {
 		job.Status = StatusProcessing

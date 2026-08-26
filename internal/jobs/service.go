@@ -13,6 +13,7 @@ import (
 var (
 	ErrFileNameRequired = errors.New("fileName is required")
 	ErrFileNameNotSTL   = errors.New("fileName must end in .stl")
+	ErrFileNameNot3MF   = errors.New("fileName must end in .3mf")
 	ErrFileSizeInvalid  = errors.New("fileSizeBytes must be greater than 0")
 	ErrFileTooLarge     = fmt.Errorf("fileSizeBytes must not exceed %d bytes (%d MiB)", MaxUploadSizeBytes, MaxUploadSizeMiB)
 )
@@ -42,6 +43,9 @@ func NewService(repository Repository, uploadSigner UploadSigner, uploadLifetime
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, error) {
+	if input.FileFormat == "" {
+		input.FileFormat = FileFormatSTL
+	}
 	if err := ValidateCreateInput(input); err != nil {
 		return CreateResult{}, err
 	}
@@ -55,11 +59,12 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 		ID:            id,
 		FileName:      input.FileName,
 		FileSizeBytes: input.FileSizeBytes,
+		FileFormat:    input.FileFormat,
 		Status:        StatusCreated,
 		CreatedAt:     createdAt,
 	}
 
-	url, fields, err := s.uploadSigner.PresignPost(ctx, "jobs/"+id+"/input.stl", input.FileSizeBytes, s.uploadLifetime)
+	url, fields, err := s.uploadSigner.PresignPost(ctx, "jobs/"+id+"/input."+string(input.FileFormat), input.FileSizeBytes, s.uploadLifetime)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -82,7 +87,17 @@ func ValidateCreateInput(input CreateInput) error {
 	if strings.TrimSpace(input.FileName) == "" {
 		return ErrFileNameRequired
 	}
-	if !strings.HasSuffix(strings.ToLower(input.FileName), ".stl") {
+	format := input.FileFormat
+	if format == "" {
+		format = FileFormatSTL
+	}
+	if format != FileFormatSTL && format != FileFormat3MF {
+		return errors.New("unsupported file format")
+	}
+	if !strings.HasSuffix(strings.ToLower(input.FileName), "."+string(format)) {
+		if format == FileFormat3MF {
+			return ErrFileNameNot3MF
+		}
 		return ErrFileNameNotSTL
 	}
 	if input.FileSizeBytes <= 0 {
