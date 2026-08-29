@@ -64,7 +64,11 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 		CreatedAt:     createdAt,
 	}
 
-	url, fields, err := s.uploadSigner.PresignPost(ctx, "jobs/"+id+"/input."+string(input.FileFormat), input.FileSizeBytes, s.uploadLifetime)
+	inputName, err := input.FileFormat.InputObjectName()
+	if err != nil {
+		return CreateResult{}, err
+	}
+	url, fields, err := s.uploadSigner.PresignPost(ctx, "jobs/"+id+"/"+inputName, input.FileSizeBytes, s.uploadLifetime)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -91,14 +95,12 @@ func ValidateCreateInput(input CreateInput) error {
 	if format == "" {
 		format = FileFormatSTL
 	}
-	if format != FileFormatSTL && format != FileFormat3MF {
+	definition, ok := format.Definition()
+	if !ok {
 		return errors.New("unsupported file format")
 	}
-	if !strings.HasSuffix(strings.ToLower(input.FileName), "."+string(format)) {
-		if format == FileFormat3MF {
-			return ErrFileNameNot3MF
-		}
-		return ErrFileNameNotSTL
+	if !strings.HasSuffix(strings.ToLower(input.FileName), definition.Extension) {
+		return definition.InvalidNameErr
 	}
 	if input.FileSizeBytes <= 0 {
 		return ErrFileSizeInvalid
