@@ -3,8 +3,24 @@ package jobs
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 )
+
+// DetectFileFormat derives the accepted format from the submitted filename.
+// The API never accepts a client-selected format as authoritative.
+func DetectFileFormat(fileName string) (FileFormat, error) {
+	name := strings.ToLower(strings.TrimSpace(fileName))
+	if name == "" {
+		return "", ErrFileNameRequired
+	}
+	for format, definition := range formatDefinitions {
+		if strings.HasSuffix(name, definition.Extension) {
+			return format, nil
+		}
+	}
+	return "", errors.New("fileName must end in .stl or .3mf")
+}
 
 type Status string
 type FileFormat string

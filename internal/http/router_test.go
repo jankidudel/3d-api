@@ -123,9 +123,9 @@ func TestCreateAndGetJob(t *testing.T) {
 	}
 }
 
-func TestCreateThreeMfJob(t *testing.T) {
+func TestCreateThreeMfJobThroughUnifiedEndpoint(t *testing.T) {
 	router := testRouter()
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/3mf-jobs", strings.NewReader(`{"fileName":"part.3MF","fileSizeBytes":42}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"part.3MF","fileSizeBytes":42}`))
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -142,14 +142,14 @@ func TestCreateThreeMfJob(t *testing.T) {
 	}
 }
 
-func TestCreateThreeMfJobRejectsStlFile(t *testing.T) {
+func TestCreateRejectsUnsupportedFilename(t *testing.T) {
 	router := testRouter()
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/3mf-jobs", strings.NewReader(`{"fileName":"part.stl","fileSizeBytes":42}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"part.obj","fileSizeBytes":42}`))
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
 
-	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), ".3mf") {
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), ".stl or .3mf") {
 		t.Errorf("status = %d, body = %q", response.Code, response.Body.String())
 	}
 }
@@ -207,7 +207,7 @@ func TestCreateRejectsInvalidInput(t *testing.T) {
 		wantBody string
 	}{
 		{name: "missing filename", body: `{"fileSizeBytes":1}`, wantBody: `{"error":"fileName is required"}` + "\n"},
-		{name: "non STL filename", body: `{"fileName":"rotor.obj","fileSizeBytes":1}`, wantBody: `{"error":"fileName must end in .stl"}` + "\n"},
+		{name: "unsupported filename", body: `{"fileName":"rotor.obj","fileSizeBytes":1}`, wantBody: `{"error":"fileName must end in .stl or .3mf"}` + "\n"},
 		{name: "zero size", body: `{"fileName":"rotor.stl","fileSizeBytes":0}`, wantBody: `{"error":"fileSizeBytes must be greater than 0"}` + "\n"},
 		{name: "negative size", body: `{"fileName":"rotor.stl","fileSizeBytes":-1}`, wantBody: `{"error":"fileSizeBytes must be greater than 0"}` + "\n"},
 	}

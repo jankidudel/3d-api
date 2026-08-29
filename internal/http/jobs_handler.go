@@ -52,14 +52,6 @@ func NewJobsHandler(service *jobs.Service, limiter *ratelimit.Limiter, logger *s
 }
 
 func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
-	h.createForFormat(jobs.FileFormatSTL, w, r)
-}
-
-func (h *JobsHandler) Create3MF(w http.ResponseWriter, r *http.Request) {
-	h.createForFormat(jobs.FileFormat3MF, w, r)
-}
-
-func (h *JobsHandler) createForFormat(format jobs.FileFormat, w http.ResponseWriter, r *http.Request) {
 	var request createJobRequest
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -69,6 +61,11 @@ func (h *JobsHandler) createForFormat(format jobs.FileFormat, w http.ResponseWri
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		response.Error(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	format, err := jobs.DetectFileFormat(request.FileName)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

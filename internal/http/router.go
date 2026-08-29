@@ -9,7 +9,6 @@ func NewRouter(jobsHandler *JobsHandler, documentationEnabled bool) http.Handler
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+apiPrefix+"/health", healthHandler)
 	mux.HandleFunc("POST "+apiPrefix+"/jobs", jobsHandler.Create)
-	mux.HandleFunc("POST "+apiPrefix+"/3mf-jobs", jobsHandler.Create3MF)
 	mux.HandleFunc("GET "+apiPrefix+"/jobs/{id}", jobsHandler.GetByID)
 	if documentationEnabled {
 		mux.HandleFunc("GET "+apiPrefix+"/openapi.yaml", openAPIHandler)
