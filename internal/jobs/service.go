@@ -46,6 +46,9 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 	if input.FileFormat == "" {
 		input.FileFormat = FileFormatSTL
 	}
+	if input.Operation == "" {
+		input.Operation = OperationQualityCheck
+	}
 	if err := ValidateCreateInput(input); err != nil {
 		return CreateResult{}, err
 	}
@@ -60,11 +63,12 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 		FileName:      input.FileName,
 		FileSizeBytes: input.FileSizeBytes,
 		FileFormat:    input.FileFormat,
+		Operation:     input.Operation,
 		Status:        StatusCreated,
 		CreatedAt:     createdAt,
 	}
 
-	inputName, err := input.FileFormat.InputObjectName()
+	inputName, err := input.FileFormat.InputObjectName(input.Operation)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -101,6 +105,12 @@ func ValidateCreateInput(input CreateInput) error {
 	}
 	if !strings.HasSuffix(strings.ToLower(input.FileName), definition.Extension) {
 		return definition.InvalidNameErr
+	}
+	if input.Operation != "" && input.Operation != OperationQualityCheck && input.Operation != OperationSafeStlRepair {
+		return errors.New("unsupported job operation")
+	}
+	if input.Operation == OperationSafeStlRepair && format != FileFormatSTL {
+		return errors.New("safe STL repair accepts STL files only")
 	}
 	if input.FileSizeBytes <= 0 {
 		return ErrFileSizeInvalid

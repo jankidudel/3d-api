@@ -40,3 +40,16 @@ func (p *S3Presigner) PresignPost(
 
 	return request.URL, request.Values, nil
 }
+
+func (p *S3Presigner) PresignGet(ctx context.Context, objectKey string, lifetime time.Duration) (string, error) {
+	request, err := p.client.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(p.bucket),
+		Key:    aws.String(objectKey),
+	}, func(options *s3.PresignOptions) {
+		options.Expires = lifetime
+	})
+	if err != nil {
+		return "", err
+	}
+	return request.URL, nil
+}

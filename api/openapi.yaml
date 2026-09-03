@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 3D Quality Check API
-  description: Creates and retrieves STL and 3MF quality-check jobs.
+  description: Creates and retrieves STL and 3MF quality-check jobs, including safe STL cleanup jobs.
   version: 0.1.0
 servers:
   - url: /api/v1
@@ -21,7 +21,7 @@ paths:
                 status: ok
   /jobs:
     post:
-      summary: Create an STL or 3MF quality-check job
+      summary: Create an STL or 3MF processing job
       operationId: createJob
       requestBody:
         required: true
@@ -87,6 +87,21 @@ paths:
                 error: job not found
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /jobs/{id}/cleaned-stl:
+    get:
+      summary: Download a verified cleaned STL from a safe repair job
+      operationId: downloadCleanedStl
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to a short-lived private artifact download.
+        "404":
+          description: No cleaned artifact is available for this job.
 components:
   schemas:
     HealthResponse:
@@ -115,6 +130,10 @@ components:
           minimum: 1
           maximum: 26214400
           example: 117884
+        operation:
+          type: string
+          enum: [safe_stl_repair]
+          description: Optional explicit safe cleanup operation. Omit for a normal quality check.
     Job:
       type: object
       required:
@@ -138,6 +157,9 @@ components:
           type: string
           enum: [stl, 3mf]
           description: Trusted server-side format selected by the job endpoint.
+        operation:
+          type: string
+          enum: [quality_check, safe_stl_repair]
         status:
           type: string
           enum:

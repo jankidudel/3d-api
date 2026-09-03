@@ -24,10 +24,16 @@ func DetectFileFormat(fileName string) (FileFormat, error) {
 
 type Status string
 type FileFormat string
+type Operation string
 
 const (
 	FileFormatSTL FileFormat = "stl"
 	FileFormat3MF FileFormat = "3mf"
+)
+
+const (
+	OperationQualityCheck  Operation = "quality_check"
+	OperationSafeStlRepair Operation = "safe_stl_repair"
 )
 
 type FormatDefinition struct {
@@ -45,7 +51,10 @@ func (f FileFormat) Definition() (FormatDefinition, bool) {
 	return definition, ok
 }
 
-func (f FileFormat) InputObjectName() (string, error) {
+func (f FileFormat) InputObjectName(operation Operation) (string, error) {
+	if operation == OperationSafeStlRepair && f == FileFormatSTL {
+		return "repair.stl", nil
+	}
 	definition, ok := f.Definition()
 	if !ok {
 		return "", errors.New("unsupported file format")
@@ -64,6 +73,7 @@ type Job struct {
 	ID            string
 	FileName      string
 	FileFormat    FileFormat
+	Operation     Operation
 	FileSizeBytes int64
 	Status        Status
 	CreatedAt     time.Time
@@ -75,6 +85,7 @@ type CreateInput struct {
 	FileName      string
 	FileSizeBytes int64
 	FileFormat    FileFormat
+	Operation     Operation
 }
 
 type Upload struct {

@@ -39,7 +39,7 @@ func NewHandler(ctx context.Context, logger *slog.Logger) (http.Handler, error) 
 	repository := jobs.NewS3Repository(bucket, s3Client)
 	service := jobs.NewService(repository, uploadSigner, 15*time.Minute)
 	return apihttp.NewRouter(
-		apihttp.NewJobsHandler(service, limiter, logger),
+		apihttp.NewJobsHandler(service, limiter, logger, uploadSigner),
 		os.Getenv("ENABLE_API_DOCUMENTATION") != "false",
 	), nil
 }

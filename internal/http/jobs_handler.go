@@ -1,6 +1,7 @@
 package apihttp
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,14 +15,18 @@ import (
 )
 
 type JobsHandler struct {
-	service *jobs.Service
-	limiter *ratelimit.Limiter
-	logger  *slog.Logger
+	service   *jobs.Service
+	limiter   *ratelimit.Limiter
+	logger    *slog.Logger
+	downloads interface {
+		PresignGet(context.Context, string, time.Duration) (string, error)
+	}
 }
 
 type createJobRequest struct {
-	FileName      string `json:"fileName"`
-	FileSizeBytes int64  `json:"fileSizeBytes"`
+	FileName      string         `json:"fileName"`
+	FileSizeBytes int64          `json:"fileSizeBytes"`
+	Operation     jobs.Operation `json:"operation,omitempty"`
 }
 
 type jobResponse struct {
@@ -29,6 +34,7 @@ type jobResponse struct {
 	FileName      string          `json:"fileName"`
 	FileSizeBytes int64           `json:"fileSizeBytes"`
 	FileFormat    jobs.FileFormat `json:"fileFormat"`
+	Operation     jobs.Operation  `json:"operation"`
 	Status        jobs.Status     `json:"status"`
 	CreatedAt     time.Time       `json:"createdAt"`
 	Report        json.RawMessage `json:"report,omitempty"`
@@ -47,8 +53,42 @@ type uploadResponse struct {
 	ExpiresAt time.Time         `json:"expiresAt"`
 }
 
-func NewJobsHandler(service *jobs.Service, limiter *ratelimit.Limiter, logger *slog.Logger) *JobsHandler {
-	return &JobsHandler{service: service, limiter: limiter, logger: logger}
+func NewJobsHandler(service *jobs.Service, limiter *ratelimit.Limiter, logger *slog.Logger, downloads ...interface {
+	PresignGet(context.Context, string, time.Duration) (string, error)
+}) *JobsHandler {
+	handler := &JobsHandler{service: service, limiter: limiter, logger: logger}
+	if len(downloads) > 0 {
+		handler.downloads = downloads[0]
+	}
+	return handler
+}
+
+func (h *JobsHandler) DownloadCleanedStl(w http.ResponseWriter, r *http.Request) {
+	if h.downloads == nil {
+		response.Error(w, http.StatusNotFound, "cleaned file not available")
+		return
+	}
+	job, err := h.service.GetByID(r.Context(), r.PathValue("id"))
+	if errors.Is(err, jobs.ErrNotFound) {
+		response.Error(w, http.StatusNotFound, "job not found")
+		return
+	}
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "get repair job failed", "error", err)
+		response.Error(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	if job.Operation != jobs.OperationSafeStlRepair || job.Status != jobs.StatusCompleted {
+		response.Error(w, http.StatusNotFound, "cleaned file not available")
+		return
+	}
+	url, err := h.downloads.PresignGet(r.Context(), "jobs/"+job.ID+"/cleaned.stl", 15*time.Minute)
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "sign cleaned STL failed", "error", err)
+		response.Error(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	http.Redirect(w, r, url, http.StatusFound)
 }
 
 func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +113,7 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		FileName:      request.FileName,
 		FileSizeBytes: request.FileSizeBytes,
 		FileFormat:    format,
+		Operation:     request.Operation,
 	}
 	if err := jobs.ValidateCreateInput(input); err != nil {
 		if errors.Is(err, jobs.ErrFileTooLarge) {
@@ -145,6 +186,7 @@ func toJobResponse(job jobs.Job) jobResponse {
 		FileName:      job.FileName,
 		FileSizeBytes: job.FileSizeBytes,
 		FileFormat:    job.FileFormat,
+		Operation:     job.Operation,
 		Status:        job.Status,
 		CreatedAt:     job.CreatedAt,
 		Report:        job.Report,

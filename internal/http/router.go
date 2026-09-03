@@ -10,6 +10,7 @@ func NewRouter(jobsHandler *JobsHandler, documentationEnabled bool) http.Handler
 	mux.HandleFunc("GET "+apiPrefix+"/health", healthHandler)
 	mux.HandleFunc("POST "+apiPrefix+"/jobs", jobsHandler.Create)
 	mux.HandleFunc("GET "+apiPrefix+"/jobs/{id}", jobsHandler.GetByID)
+	mux.HandleFunc("GET "+apiPrefix+"/jobs/{id}/cleaned-stl", jobsHandler.DownloadCleanedStl)
 	if documentationEnabled {
 		mux.HandleFunc("GET "+apiPrefix+"/openapi.yaml", openAPIHandler)
 		mux.HandleFunc("GET "+swaggerPrefix+"/{$}", swaggerUIHandler)
