@@ -32,8 +32,9 @@ const (
 )
 
 const (
-	OperationQualityCheck  Operation = "quality_check"
-	OperationSafeStlRepair Operation = "safe_stl_repair"
+	OperationQualityCheck      Operation = "quality_check"
+	OperationSafeStlRepair     Operation = "safe_stl_repair"
+	OperationSafeThreeMfRepair Operation = "safe_3mf_repair"
 )
 
 type FormatDefinition struct {
@@ -54,6 +55,9 @@ func (f FileFormat) Definition() (FormatDefinition, bool) {
 func (f FileFormat) InputObjectName(operation Operation) (string, error) {
 	if operation == OperationSafeStlRepair && f == FileFormatSTL {
 		return "repair.stl", nil
+	}
+	if operation == OperationSafeThreeMfRepair && f == FileFormat3MF {
+		return "repair.3mf", nil
 	}
 	definition, ok := f.Definition()
 	if !ok {

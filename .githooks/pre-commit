@@ -1,4 +1,13 @@
 #!/bin/sh
 set -eu
 
+before_format=$(git diff --binary | git hash-object --stdin)
+make fmt
+after_format=$(git diff --binary | git hash-object --stdin)
+
+if [ "$before_format" != "$after_format" ]; then
+  echo "Go formatting was applied. Review and stage the changes, then commit again."
+  exit 1
+fi
+
 make check

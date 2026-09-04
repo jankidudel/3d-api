@@ -41,6 +41,12 @@ repository. Avoid unnecessary layers and dependency-injection frameworks.
 - Prefer simple, idiomatic Go over clever abstractions.
 - Use explicit `{}` blocks for every `if`, `else`, loop, and other control-flow
   body, including single-statement bodies. Do not write braceless control flow.
+- Put every control-flow condition, opening brace, body statement, and closing
+  brace on its own appropriate line. Never compress an `if`, `else`, loop,
+  `switch` arm, `return`, or other statement into a single line.
+- Every `if` and `else` body must use braces, even for exactly one statement.
+  For example, write `if (condition) { ... } else { ... }` as multiline blocks;
+  never write an unbraced `if (condition) statement;` or `else statement;`.
 - Use the standard library where practical and keep dependencies minimal.
 - Keep functions and packages focused.
 - Use explicit request and response DTOs for HTTP JSON.

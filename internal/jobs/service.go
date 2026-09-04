@@ -106,11 +106,14 @@ func ValidateCreateInput(input CreateInput) error {
 	if !strings.HasSuffix(strings.ToLower(input.FileName), definition.Extension) {
 		return definition.InvalidNameErr
 	}
-	if input.Operation != "" && input.Operation != OperationQualityCheck && input.Operation != OperationSafeStlRepair {
+	if input.Operation != "" && input.Operation != OperationQualityCheck && input.Operation != OperationSafeStlRepair && input.Operation != OperationSafeThreeMfRepair {
 		return errors.New("unsupported job operation")
 	}
 	if input.Operation == OperationSafeStlRepair && format != FileFormatSTL {
 		return errors.New("safe STL repair accepts STL files only")
+	}
+	if input.Operation == OperationSafeThreeMfRepair && format != FileFormat3MF {
+		return errors.New("safe 3MF repair accepts 3MF files only")
 	}
 	if input.FileSizeBytes <= 0 {
 		return ErrFileSizeInvalid

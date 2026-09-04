@@ -191,13 +191,13 @@ the ignored `artifacts/3d-api.zip` containing the required `bootstrap` executabl
 
 ## Pre-commit hook
 
-This repository includes a hook at `.githooks/pre-commit` that runs
-`make check` before every commit. Enable repository-managed hooks once per
+This repository includes a hook at `.githooks/pre-commit` that formats Go code
+and runs `make check` before every commit. Enable repository-managed hooks once per
 clone with:
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-A commit is stopped if Go files need formatting, vet or linting fails, or
-tests fail.
+If formatting changes files, the commit is stopped so you can review and stage
+those changes. It is also stopped if vet, linting, or tests fail.

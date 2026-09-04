@@ -91,6 +91,35 @@ func (h *JobsHandler) DownloadCleanedStl(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
+func (h *JobsHandler) DownloadCleanedThreeMf(w http.ResponseWriter, r *http.Request) {
+	if h.downloads == nil {
+		response.Error(w, http.StatusNotFound, "cleaned file not available")
+		return
+	}
+
+	job, err := h.service.GetByID(r.Context(), r.PathValue("id"))
+	if errors.Is(err, jobs.ErrNotFound) {
+		response.Error(w, http.StatusNotFound, "job not found")
+		return
+	}
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "get repair job failed", "error", err)
+		response.Error(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	if job.Operation != jobs.OperationSafeThreeMfRepair || job.Status != jobs.StatusCompleted {
+		response.Error(w, http.StatusNotFound, "cleaned file not available")
+		return
+	}
+	url, err := h.downloads.PresignGet(r.Context(), "jobs/"+job.ID+"/cleaned.3mf", 15*time.Minute)
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "sign cleaned 3MF failed", "error", err)
+		response.Error(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	http.Redirect(w, r, url, http.StatusFound)
+}
+
 func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var request createJobRequest
 	decoder := json.NewDecoder(r.Body)

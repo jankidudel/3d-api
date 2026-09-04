@@ -102,6 +102,21 @@ paths:
           description: Redirect to a short-lived private artifact download.
         "404":
           description: No cleaned artifact is available for this job.
+  /jobs/{id}/cleaned-3mf:
+    get:
+      summary: Download a verified repaired 3MF from a safe repair job
+      operationId: downloadCleanedThreeMf
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to a short-lived private artifact download.
+        "404":
+          description: No repaired artifact is available for this job.
 components:
   schemas:
     HealthResponse:
@@ -132,7 +147,7 @@ components:
           example: 117884
         operation:
           type: string
-          enum: [safe_stl_repair]
+          enum: [safe_stl_repair, safe_3mf_repair]
           description: Optional explicit safe cleanup operation. Omit for a normal quality check.
     Job:
       type: object
@@ -159,7 +174,7 @@ components:
           description: Trusted server-side format selected by the job endpoint.
         operation:
           type: string
-          enum: [quality_check, safe_stl_repair]
+          enum: [quality_check, safe_stl_repair, safe_3mf_repair]
         status:
           type: string
           enum:
