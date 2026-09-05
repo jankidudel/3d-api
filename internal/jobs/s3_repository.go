@@ -14,7 +14,12 @@ import (
 	"github.com/aws/smithy-go"
 )
 
-const jobsPrefix = "jobs/"
+const (
+	jobsPrefix     = "jobs/"
+	metadataObject = "metadata.json"
+	reportObject   = OutputFolder + "/report.json"
+	failureObject  = OutputFolder + "/failure.json"
+)
 
 type S3RepositoryClient interface {
 	PutObject(context.Context, *s3.PutObjectInput, ...func(*s3.Options)) (*s3.PutObjectOutput, error)
@@ -49,7 +54,7 @@ func (r *S3Repository) Create(ctx context.Context, job Job) error {
 	}
 	_, err = r.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(r.bucket),
-		Key:         aws.String(jobObjectKey(job.ID, "metadata.json")),
+		Key:         aws.String(jobObjectKey(job.ID, metadataObject)),
 		Body:        bytes.NewReader(metadata),
 		ContentType: aws.String("application/json"),
 	})
@@ -58,7 +63,7 @@ func (r *S3Repository) Create(ctx context.Context, job Job) error {
 
 func (r *S3Repository) GetByID(ctx context.Context, id string) (Job, error) {
 	metadataObject, err := r.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(r.bucket), Key: aws.String(jobObjectKey(id, "metadata.json")),
+		Bucket: aws.String(r.bucket), Key: aws.String(jobObjectKey(id, metadataObject)),
 	})
 	if isNotFound(err) {
 		return Job{}, ErrNotFound
@@ -77,7 +82,7 @@ func (r *S3Repository) GetByID(ctx context.Context, id string) (Job, error) {
 		Status: StatusCreated, CreatedAt: metadata.CreatedAt,
 	}
 	reportObject, err := r.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(r.bucket), Key: aws.String(jobObjectKey(id, "report.json")),
+		Bucket: aws.String(r.bucket), Key: aws.String(jobObjectKey(id, reportObject)),
 	})
 	if err == nil {
 		defer reportObject.Body.Close()
@@ -95,7 +100,7 @@ func (r *S3Repository) GetByID(ctx context.Context, id string) (Job, error) {
 		return Job{}, err
 	}
 	failureObject, err := r.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(r.bucket), Key: aws.String(jobObjectKey(id, "failure.json")),
+		Bucket: aws.String(r.bucket), Key: aws.String(jobObjectKey(id, failureObject)),
 	})
 	if err == nil {
 		defer failureObject.Body.Close()

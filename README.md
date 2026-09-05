@@ -90,7 +90,7 @@ curl $(jq -r '.upload.fields | to_entries[] | "-F \(.key)=\(.value|@sh)"' job.js
   -F 'file=@rotor.stl' "$(jq -r .upload.url job.json)"
 ```
 
-The uploaded object key is `jobs/{job-id}/input.stl`. For browser uploads, the
+The uploaded object key is `jobs/{job-id}/input/input.stl`. For browser uploads, the
 S3 bucket must have a CORS rule that allows `POST` from the frontend's origin.
 Do not make the bucket public; the presigned URL grants temporary permission
 for this specific upload.
@@ -109,7 +109,7 @@ curl http://localhost:8080/api/v1/jobs/JOB_ID
 
 The API reads `jobs/{job-id}/metadata.json`, reports `processing` once the input
 object exists, and returns `completed` with the JSON report once
-`jobs/{job-id}/report.json` exists.
+`jobs/{job-id}/output/report.json` exists.
 
 ## Run tests
 
@@ -175,7 +175,7 @@ followed by:
 ```
 
 Statuses are `created`, `processing`, `completed`, and `failed`. On the final SQS
-attempt, the processor stores `jobs/{jobId}/failure.json`; the API returns its
+attempt, the processor stores `jobs/{jobId}/output/failure.json`; the API returns its
 safe structured error when no completed report exists.
 
 ## Package for Lambda

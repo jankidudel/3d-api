@@ -62,13 +62,13 @@ func TestS3RepositoryTracksCreatedProcessingAndCompleted(t *testing.T) {
 		t.Fatalf("created job = %+v, error = %v", created, err)
 	}
 
-	client.objects[jobObjectKey(job.ID, "input.stl")] = []byte("mesh")
+	client.objects[jobObjectKey(job.ID, "input/input.stl")] = []byte("mesh")
 	processing, err := repository.GetByID(ctx, job.ID)
 	if err != nil || processing.Status != StatusProcessing {
 		t.Fatalf("processing job = %+v, error = %v", processing, err)
 	}
 
-	client.objects[jobObjectKey(job.ID, "report.json")] = []byte(`{"triangleCount":12}`)
+	client.objects[jobObjectKey(job.ID, "output/report.json")] = []byte(`{"triangleCount":12}`)
 	completed, err := repository.GetByID(ctx, job.ID)
 	if err != nil || completed.Status != StatusCompleted {
 		t.Fatalf("completed job = %+v, error = %v", completed, err)
@@ -77,8 +77,8 @@ func TestS3RepositoryTracksCreatedProcessingAndCompleted(t *testing.T) {
 		t.Errorf("report = %s", completed.Report)
 	}
 
-	delete(client.objects, jobObjectKey(job.ID, "report.json"))
-	client.objects[jobObjectKey(job.ID, "failure.json")] = []byte(`{"error":{"code":"processing_failed"}}`)
+	delete(client.objects, jobObjectKey(job.ID, "output/report.json"))
+	client.objects[jobObjectKey(job.ID, "output/failure.json")] = []byte(`{"error":{"code":"processing_failed"}}`)
 	failed, err := repository.GetByID(ctx, job.ID)
 	if err != nil || failed.Status != StatusFailed {
 		t.Fatalf("failed job = %+v, error = %v", failed, err)
@@ -107,7 +107,7 @@ func TestS3RepositoryTracksThreeMfInputUsingStoredFormat(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	client.objects[jobObjectKey(job.ID, "input.3mf")] = []byte("3mf")
+	client.objects[jobObjectKey(job.ID, "input/input.3mf")] = []byte("3mf")
 	stored, err := repository.GetByID(ctx, job.ID)
 	if err != nil || stored.Status != StatusProcessing || stored.FileFormat != FileFormat3MF {
 		t.Fatalf("stored job = %+v, error = %v", stored, err)

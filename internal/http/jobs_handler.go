@@ -82,7 +82,7 @@ func (h *JobsHandler) DownloadCleanedStl(w http.ResponseWriter, r *http.Request)
 		response.Error(w, http.StatusNotFound, "cleaned file not available")
 		return
 	}
-	url, err := h.downloads.PresignGet(r.Context(), "jobs/"+job.ID+"/cleaned.stl", 15*time.Minute)
+	url, err := h.downloads.PresignGet(r.Context(), "jobs/"+job.ID+"/"+jobs.OutputFolder+"/cleaned.stl", 15*time.Minute)
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "sign cleaned STL failed", "error", err)
 		response.Error(w, http.StatusInternalServerError, "internal server error")
@@ -111,7 +111,7 @@ func (h *JobsHandler) DownloadCleanedThreeMf(w http.ResponseWriter, r *http.Requ
 		response.Error(w, http.StatusNotFound, "cleaned file not available")
 		return
 	}
-	url, err := h.downloads.PresignGet(r.Context(), "jobs/"+job.ID+"/cleaned.3mf", 15*time.Minute)
+	url, err := h.downloads.PresignGet(r.Context(), "jobs/"+job.ID+"/"+jobs.OutputFolder+"/cleaned.3mf", 15*time.Minute)
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "sign cleaned 3MF failed", "error", err)
 		response.Error(w, http.StatusInternalServerError, "internal server error")

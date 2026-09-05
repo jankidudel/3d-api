@@ -56,7 +56,7 @@ func TestCreateValidJob(t *testing.T) {
 	if job.CreatedAt.IsZero() {
 		t.Error("CreatedAt is zero")
 	}
-	if signer.objectKey != "jobs/"+job.ID+"/input.stl" {
+	if signer.objectKey != "jobs/"+job.ID+"/input/input.stl" {
 		t.Errorf("object key = %q", signer.objectKey)
 	}
 	if signer.fileSize != job.FileSizeBytes {
@@ -79,7 +79,7 @@ func TestCreateThreeMfJobUsesTrustedFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if result.Job.FileFormat != FileFormat3MF || signer.objectKey != "jobs/"+result.Job.ID+"/input.3mf" {
+	if result.Job.FileFormat != FileFormat3MF || signer.objectKey != "jobs/"+result.Job.ID+"/input/input.3mf" {
 		t.Errorf("3MF job = %+v, object key = %q", result.Job, signer.objectKey)
 	}
 }

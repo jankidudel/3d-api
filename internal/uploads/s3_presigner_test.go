@@ -24,7 +24,7 @@ func TestS3PresignerCreatesSizeLimitedPostRequest(t *testing.T) {
 
 	presignedURL, fields, err := presigner.PresignPost(
 		context.Background(),
-		"jobs/job-1/input.stl",
+		"jobs/job-1/input/input.stl",
 		117884,
 		15*time.Minute,
 	)
@@ -42,7 +42,7 @@ func TestS3PresignerCreatesSizeLimitedPostRequest(t *testing.T) {
 	if parsed.Path != "" && parsed.Path != "/" {
 		t.Errorf("path = %q, want bucket root", parsed.Path)
 	}
-	if fields["key"] != "jobs/job-1/input.stl" {
+	if fields["key"] != "jobs/job-1/input/input.stl" {
 		t.Errorf("key = %q", fields["key"])
 	}
 	policyJSON, err := base64.StdEncoding.DecodeString(fields["policy"])
