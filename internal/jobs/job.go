@@ -40,6 +40,7 @@ const (
 	OperationQualityCheck      Operation = "quality_check"
 	OperationSafeStlRepair     Operation = "safe_stl_repair"
 	OperationSafeThreeMfRepair Operation = "safe_3mf_repair"
+	OperationStlSplit          Operation = "stl_split"
 )
 
 type FormatDefinition struct {
@@ -61,6 +62,9 @@ func (f FileFormat) InputObjectName(operation Operation) (string, error) {
 	if operation == OperationSafeStlRepair && f == FileFormatSTL {
 		return InputFolder + "/repair.stl", nil
 	}
+	if operation == OperationStlSplit && f == FileFormatSTL {
+		return InputFolder + "/split.stl", nil
+	}
 	if operation == OperationSafeThreeMfRepair && f == FileFormat3MF {
 		return InputFolder + "/repair.3mf", nil
 	}
@@ -79,22 +83,26 @@ const (
 )
 
 type Job struct {
-	ID            string
-	FileName      string
-	FileFormat    FileFormat
-	Operation     Operation
-	FileSizeBytes int64
-	Status        Status
-	CreatedAt     time.Time
-	Report        json.RawMessage
-	Failure       json.RawMessage
+	ID                   string
+	FileName             string
+	FileFormat           FileFormat
+	Operation            Operation
+	SplitAxis            string
+	SplitPositionPercent float64
+	FileSizeBytes        int64
+	Status               Status
+	CreatedAt            time.Time
+	Report               json.RawMessage
+	Failure              json.RawMessage
 }
 
 type CreateInput struct {
-	FileName      string
-	FileSizeBytes int64
-	FileFormat    FileFormat
-	Operation     Operation
+	FileName             string
+	FileSizeBytes        int64
+	FileFormat           FileFormat
+	Operation            Operation
+	SplitAxis            string
+	SplitPositionPercent float64
 }
 
 type Upload struct {

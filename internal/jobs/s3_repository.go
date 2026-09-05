@@ -33,12 +33,14 @@ type S3Repository struct {
 }
 
 type jobMetadata struct {
-	ID            string     `json:"id"`
-	FileName      string     `json:"fileName"`
-	FileFormat    FileFormat `json:"fileFormat"`
-	Operation     Operation  `json:"operation"`
-	FileSizeBytes int64      `json:"fileSizeBytes"`
-	CreatedAt     time.Time  `json:"createdAt"`
+	ID                   string     `json:"id"`
+	FileName             string     `json:"fileName"`
+	FileFormat           FileFormat `json:"fileFormat"`
+	Operation            Operation  `json:"operation"`
+	FileSizeBytes        int64      `json:"fileSizeBytes"`
+	CreatedAt            time.Time  `json:"createdAt"`
+	SplitAxis            string     `json:"splitAxis,omitempty"`
+	SplitPositionPercent float64    `json:"splitPositionPercent,omitempty"`
 }
 
 func NewS3Repository(bucket string, client S3RepositoryClient) *S3Repository {
@@ -47,7 +49,7 @@ func NewS3Repository(bucket string, client S3RepositoryClient) *S3Repository {
 
 func (r *S3Repository) Create(ctx context.Context, job Job) error {
 	metadata, err := json.Marshal(jobMetadata{
-		ID: job.ID, FileName: job.FileName, FileSizeBytes: job.FileSizeBytes, FileFormat: job.FileFormat, Operation: job.Operation, CreatedAt: job.CreatedAt,
+		ID: job.ID, FileName: job.FileName, FileSizeBytes: job.FileSizeBytes, FileFormat: job.FileFormat, Operation: job.Operation, CreatedAt: job.CreatedAt, SplitAxis: job.SplitAxis, SplitPositionPercent: job.SplitPositionPercent,
 	})
 	if err != nil {
 		return err
@@ -78,7 +80,7 @@ func (r *S3Repository) GetByID(ctx context.Context, id string) (Job, error) {
 	}
 
 	job := Job{
-		ID: metadata.ID, FileName: metadata.FileName, FileSizeBytes: metadata.FileSizeBytes, FileFormat: metadata.FileFormat, Operation: metadata.Operation,
+		ID: metadata.ID, FileName: metadata.FileName, FileSizeBytes: metadata.FileSizeBytes, FileFormat: metadata.FileFormat, Operation: metadata.Operation, SplitAxis: metadata.SplitAxis, SplitPositionPercent: metadata.SplitPositionPercent,
 		Status: StatusCreated, CreatedAt: metadata.CreatedAt,
 	}
 	reportObject, err := r.client.GetObject(ctx, &s3.GetObjectInput{

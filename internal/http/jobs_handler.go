@@ -24,9 +24,11 @@ type JobsHandler struct {
 }
 
 type createJobRequest struct {
-	FileName      string         `json:"fileName"`
-	FileSizeBytes int64          `json:"fileSizeBytes"`
-	Operation     jobs.Operation `json:"operation,omitempty"`
+	FileName             string         `json:"fileName"`
+	FileSizeBytes        int64          `json:"fileSizeBytes"`
+	Operation            jobs.Operation `json:"operation,omitempty"`
+	SplitAxis            string         `json:"splitAxis,omitempty"`
+	SplitPositionPercent float64        `json:"splitPositionPercent,omitempty"`
 }
 
 type jobResponse struct {
@@ -120,6 +122,30 @@ func (h *JobsHandler) DownloadCleanedThreeMf(w http.ResponseWriter, r *http.Requ
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
+func (h *JobsHandler) DownloadSplitPartA(w http.ResponseWriter, r *http.Request) {
+	h.downloadSplitPart(w, r, "part-a.stl")
+}
+func (h *JobsHandler) DownloadSplitPartB(w http.ResponseWriter, r *http.Request) {
+	h.downloadSplitPart(w, r, "part-b.stl")
+}
+func (h *JobsHandler) downloadSplitPart(w http.ResponseWriter, r *http.Request, name string) {
+	if h.downloads == nil {
+		response.Error(w, http.StatusNotFound, "split file not available")
+		return
+	}
+	job, err := h.service.GetByID(r.Context(), r.PathValue("id"))
+	if err != nil || job.Operation != jobs.OperationStlSplit || job.Status != jobs.StatusCompleted {
+		response.Error(w, http.StatusNotFound, "split file not available")
+		return
+	}
+	url, err := h.downloads.PresignGet(r.Context(), "jobs/"+job.ID+"/"+jobs.OutputFolder+"/"+name, 15*time.Minute)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	http.Redirect(w, r, url, http.StatusFound)
+}
+
 func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var request createJobRequest
 	decoder := json.NewDecoder(r.Body)
@@ -142,7 +168,7 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		FileName:      request.FileName,
 		FileSizeBytes: request.FileSizeBytes,
 		FileFormat:    format,
-		Operation:     request.Operation,
+		Operation:     request.Operation, SplitAxis: request.SplitAxis, SplitPositionPercent: request.SplitPositionPercent,
 	}
 	if err := jobs.ValidateCreateInput(input); err != nil {
 		if errors.Is(err, jobs.ErrFileTooLarge) {

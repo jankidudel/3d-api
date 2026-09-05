@@ -63,9 +63,9 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 		FileName:      input.FileName,
 		FileSizeBytes: input.FileSizeBytes,
 		FileFormat:    input.FileFormat,
-		Operation:     input.Operation,
-		Status:        StatusCreated,
-		CreatedAt:     createdAt,
+		Operation:     input.Operation, SplitAxis: input.SplitAxis, SplitPositionPercent: input.SplitPositionPercent,
+		Status:    StatusCreated,
+		CreatedAt: createdAt,
 	}
 
 	inputName, err := input.FileFormat.InputObjectName(input.Operation)
@@ -106,7 +106,7 @@ func ValidateCreateInput(input CreateInput) error {
 	if !strings.HasSuffix(strings.ToLower(input.FileName), definition.Extension) {
 		return definition.InvalidNameErr
 	}
-	if input.Operation != "" && input.Operation != OperationQualityCheck && input.Operation != OperationSafeStlRepair && input.Operation != OperationSafeThreeMfRepair {
+	if input.Operation != "" && input.Operation != OperationQualityCheck && input.Operation != OperationSafeStlRepair && input.Operation != OperationSafeThreeMfRepair && input.Operation != OperationStlSplit {
 		return errors.New("unsupported job operation")
 	}
 	if input.Operation == OperationSafeStlRepair && format != FileFormatSTL {
@@ -114,6 +114,9 @@ func ValidateCreateInput(input CreateInput) error {
 	}
 	if input.Operation == OperationSafeThreeMfRepair && format != FileFormat3MF {
 		return errors.New("safe 3MF repair accepts 3MF files only")
+	}
+	if input.Operation == OperationStlSplit && (format != FileFormatSTL || (input.SplitAxis != "X" && input.SplitAxis != "Y" && input.SplitAxis != "Z") || input.SplitPositionPercent <= 0 || input.SplitPositionPercent >= 100) {
+		return errors.New("STL split requires an STL, X/Y/Z axis and a position inside the model bounds")
 	}
 	if input.FileSizeBytes <= 0 {
 		return ErrFileSizeInvalid
