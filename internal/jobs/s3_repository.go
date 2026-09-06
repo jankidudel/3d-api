@@ -38,6 +38,7 @@ type jobMetadata struct {
 	FileFormat           FileFormat `json:"fileFormat"`
 	Operation            Operation  `json:"operation"`
 	FileSizeBytes        int64      `json:"fileSizeBytes"`
+	QuotaID              string     `json:"quotaId"`
 	CreatedAt            time.Time  `json:"createdAt"`
 	SplitAxis            string     `json:"splitAxis,omitempty"`
 	SplitPositionPercent float64    `json:"splitPositionPercent,omitempty"`
@@ -49,7 +50,7 @@ func NewS3Repository(bucket string, client S3RepositoryClient) *S3Repository {
 
 func (r *S3Repository) Create(ctx context.Context, job Job) error {
 	metadata, err := json.Marshal(jobMetadata{
-		ID: job.ID, FileName: job.FileName, FileSizeBytes: job.FileSizeBytes, FileFormat: job.FileFormat, Operation: job.Operation, CreatedAt: job.CreatedAt, SplitAxis: job.SplitAxis, SplitPositionPercent: job.SplitPositionPercent,
+		ID: job.ID, FileName: job.FileName, FileSizeBytes: job.FileSizeBytes, QuotaID: job.QuotaID, FileFormat: job.FileFormat, Operation: job.Operation, CreatedAt: job.CreatedAt, SplitAxis: job.SplitAxis, SplitPositionPercent: job.SplitPositionPercent,
 	})
 	if err != nil {
 		return err
@@ -80,7 +81,7 @@ func (r *S3Repository) GetByID(ctx context.Context, id string) (Job, error) {
 	}
 
 	job := Job{
-		ID: metadata.ID, FileName: metadata.FileName, FileSizeBytes: metadata.FileSizeBytes, FileFormat: metadata.FileFormat, Operation: metadata.Operation, SplitAxis: metadata.SplitAxis, SplitPositionPercent: metadata.SplitPositionPercent,
+		ID: metadata.ID, FileName: metadata.FileName, FileSizeBytes: metadata.FileSizeBytes, QuotaID: metadata.QuotaID, FileFormat: metadata.FileFormat, Operation: metadata.Operation, SplitAxis: metadata.SplitAxis, SplitPositionPercent: metadata.SplitPositionPercent,
 		Status: StatusCreated, CreatedAt: metadata.CreatedAt,
 	}
 	reportObject, err := r.client.GetObject(ctx, &s3.GetObjectInput{
@@ -141,6 +142,21 @@ func (r *S3Repository) GetByID(ctx context.Context, id string) (Job, error) {
 
 func jobObjectKey(id string, name string) string {
 	return jobsPrefix + id + "/" + name
+}
+
+func (r *S3Repository) InputSize(ctx context.Context, job Job) (int64, error) {
+	name, err := job.FileFormat.InputObjectName(job.Operation)
+	if err != nil {
+		return 0, err
+	}
+	object, err := r.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(r.bucket), Key: aws.String(jobObjectKey(job.ID, name))})
+	if isNotFound(err) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, err
+	}
+	return aws.ToInt64(object.ContentLength), nil
 }
 
 func isNotFound(err error) bool {

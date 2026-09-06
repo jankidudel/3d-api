@@ -11,17 +11,21 @@ import (
 )
 
 const (
-	MaxAcceptedJobsPerHour = 10
-	MaxAcceptedJobsPerDay  = 30
-	RollingHour            = 60 * time.Minute
-	RollingDay             = 24 * time.Hour
+	MaxAcceptedJobsPerHour       = 10
+	MaxAcceptedJobsPerDay        = 100
+	MaxAcceptedBytesPerDay int64 = 256 * 1024 * 1024
+	RollingHour                  = 60 * time.Minute
+	RollingDay                   = 24 * time.Hour
 )
 
-var ErrLimited = errors.New("rate limit exceeded")
+var (
+	ErrLimited     = errors.New("rate limit exceeded")
+	ErrByteLimited = errors.New("upload byte limit exceeded")
+)
 
 // Store keeps a bounded (maximum 30) timestamp list per HMAC-derived IP.
 type Store interface {
-	Consume(context.Context, string, time.Time) error
+	Consume(context.Context, string, string, int64, time.Time) error
 }
 type Limiter struct {
 	store  Store
@@ -33,14 +37,18 @@ func New(store Store, secret string) *Limiter {
 	return &Limiter{store: store, secret: []byte(secret), now: time.Now}
 }
 
-func (l *Limiter) Allow(ctx context.Context, ip string) (time.Duration, error) {
-	if host, _, err := net.SplitHostPort(ip); err == nil {
-		ip = host
-	}
-	if err := l.store.Consume(ctx, l.identifier(ip), l.now().UTC()); err != nil {
+func (l *Limiter) Allow(ctx context.Context, identifier string, uploadID string, size int64) (time.Duration, error) {
+	if err := l.store.Consume(ctx, identifier, uploadID, size, l.now().UTC()); err != nil {
 		return 0, err
 	}
 	return 0, nil
+}
+
+func (l *Limiter) Identifier(ip string) string {
+	if host, _, err := net.SplitHostPort(ip); err == nil {
+		ip = host
+	}
+	return l.identifier(ip)
 }
 
 func (l *Limiter) identifier(ip string) string {

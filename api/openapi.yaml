@@ -87,6 +87,35 @@ paths:
                 error: job not found
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /jobs/{id}/complete:
+    post:
+      summary: Verify an uploaded file and queue it for processing
+      operationId: completeJobUpload
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: The uploaded file passed quota checks and was queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "413":
+          description: The actual S3 object exceeds the upload limit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedErrorResponse"
+        "429":
+          description: The rolling upload allowance has been reached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CodedErrorResponse"
   /jobs/{id}/cleaned-stl:
     get:
       summary: Download a verified cleaned STL from a safe repair job

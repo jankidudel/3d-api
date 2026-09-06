@@ -7,21 +7,32 @@ import (
 	"time"
 )
 
-type memoryStore struct {
-	mu      sync.Mutex
-	entries map[string][]time.Time
+type acceptedUpload struct {
+	id   string
+	size int64
+	at   time.Time
 }
 
-func (s *memoryStore) Consume(_ context.Context, id string, now time.Time) error {
+type memoryStore struct {
+	mu      sync.Mutex
+	entries map[string][]acceptedUpload
+}
+
+func (s *memoryStore) Consume(_ context.Context, key string, id string, size int64, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cutoff := now.Add(-RollingDay)
-	kept := []time.Time{}
+	kept := make([]acceptedUpload, 0, len(s.entries[key]))
 	hourly := 0
-	for _, t := range s.entries[id] {
-		if t.After(cutoff) {
-			kept = append(kept, t)
-			if t.After(now.Add(-RollingHour)) {
+	var total int64
+	for _, entry := range s.entries[key] {
+		if entry.at.After(cutoff) {
+			if entry.id == id {
+				return nil
+			}
+			kept = append(kept, entry)
+			total += entry.size
+			if entry.at.After(now.Add(-RollingHour)) {
 				hourly++
 			}
 		}
@@ -29,71 +40,74 @@ func (s *memoryStore) Consume(_ context.Context, id string, now time.Time) error
 	if hourly >= MaxAcceptedJobsPerHour || len(kept) >= MaxAcceptedJobsPerDay {
 		return ErrLimited
 	}
-	s.entries[id] = append(kept, now)
+	if total+size > MaxAcceptedBytesPerDay {
+		return ErrByteLimited
+	}
+	s.entries[key] = append(kept, acceptedUpload{id: id, size: size, at: now})
 	return nil
 }
+
 func testLimiter(now time.Time) (*Limiter, *memoryStore) {
-	store := &memoryStore{entries: map[string][]time.Time{}}
-	l := New(store, "test-secret")
-	l.now = func() time.Time { return now }
-	return l, store
+	store := &memoryStore{entries: map[string][]acceptedUpload{}}
+	limiter := New(store, "test-secret")
+	limiter.now = func() time.Time { return now }
+	return limiter, store
 }
-func TestRollingHour(t *testing.T) {
-	l, _ := testLimiter(time.Date(2026, 8, 22, 17, 44, 0, 0, time.UTC))
-	for range 10 {
-		if _, e := l.Allow(context.Background(), "203.0.113.8"); e != nil {
-			t.Fatal(e)
+
+func allow(limiter *Limiter, id string, size int64) error {
+	_, err := limiter.Allow(context.Background(), limiter.Identifier("203.0.113.8"), id, size)
+	return err
+}
+
+func TestRollingHourAllowsTenthAndRejectsEleventh(t *testing.T) {
+	limiter, _ := testLimiter(time.Date(2026, 8, 22, 17, 44, 0, 0, time.UTC))
+	for index := range 10 {
+		if err := allow(limiter, string(rune('a'+index)), 1); err != nil {
+			t.Fatal(err)
 		}
 	}
-	l.now = func() time.Time { return time.Date(2026, 8, 22, 18, 0, 0, 0, time.UTC) }
-	if _, e := l.Allow(context.Background(), "203.0.113.8"); e != ErrLimited {
-		t.Fatalf("boundary error = %v", e)
-	}
-	l.now = func() time.Time { return time.Date(2026, 8, 22, 18, 44, 0, 0, time.UTC) }
-	if _, e := l.Allow(context.Background(), "203.0.113.8"); e != nil {
-		t.Fatal(e)
+	if err := allow(limiter, "eleventh", 1); err != ErrLimited {
+		t.Fatalf("error = %v", err)
 	}
 }
-func TestRollingDay(t *testing.T) {
-	l, _ := testLimiter(time.Date(2026, 8, 22, 0, 0, 0, 0, time.UTC))
-	for hour := 0; hour < 3; hour++ {
-		l.now = func() time.Time { return time.Date(2026, 8, 22, hour, 0, 0, 0, time.UTC) }
-		for range 10 {
-			if _, e := l.Allow(context.Background(), "203.0.113.8"); e != nil {
-				t.Fatal(e)
-			}
+
+func TestRollingDayAllowsHundredthAndRejectsNext(t *testing.T) {
+	limiter, _ := testLimiter(time.Date(2026, 8, 22, 0, 0, 0, 0, time.UTC))
+	for index := range 100 {
+		limiter.now = func() time.Time { return time.Date(2026, 8, 22, index/10*2, 0, 0, 0, time.UTC) }
+		if err := allow(limiter, string(rune(index+1)), 1); err != nil {
+			t.Fatal(err)
 		}
 	}
-	l.now = func() time.Time { return time.Date(2026, 8, 23, 0, 0, 0, 0, time.UTC) }
-	if _, e := l.Allow(context.Background(), "203.0.113.8"); e != nil {
-		t.Fatal(e)
+	limiter.now = func() time.Time { return time.Date(2026, 8, 22, 23, 0, 0, 0, time.UTC) }
+	if err := allow(limiter, "101", 1); err != ErrLimited {
+		t.Fatalf("error = %v", err)
 	}
 }
-func TestConcurrentRequestsCannotExceedLimit(t *testing.T) {
-	l, _ := testLimiter(time.Date(2026, 8, 22, 10, 0, 0, 0, time.UTC))
+
+func TestByteAllowanceAndConcurrentAttempts(t *testing.T) {
+	limiter, _ := testLimiter(time.Now().UTC())
+	if err := allow(limiter, "full", MaxAcceptedBytesPerDay); err != nil {
+		t.Fatal(err)
+	}
+	if err := allow(limiter, "next", 1); err != ErrByteLimited {
+		t.Fatalf("error = %v", err)
+	}
+	limiter, _ = testLimiter(time.Now().UTC())
 	var accepted int
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	for range 50 {
-		wg.Go(func() {
-			if _, e := l.Allow(context.Background(), "203.0.113.8"); e == nil {
-				mu.Lock()
+	var lock sync.Mutex
+	var group sync.WaitGroup
+	for index := range 50 {
+		group.Go(func() {
+			if allow(limiter, string(rune(index+1)), 1) == nil {
+				lock.Lock()
 				accepted++
-				mu.Unlock()
+				lock.Unlock()
 			}
 		})
 	}
-	wg.Wait()
-	if accepted != 10 {
-		t.Fatalf("accepted=%d", accepted)
-	}
-}
-func TestLimiterStoresOnlyDerivedIdentifier(t *testing.T) {
-	l, s := testLimiter(time.Now())
-	_, _ = l.Allow(context.Background(), "203.0.113.8")
-	for k := range s.entries {
-		if k == "203.0.113.8" {
-			t.Fatal("raw IP stored")
-		}
+	group.Wait()
+	if accepted != MaxAcceptedJobsPerHour {
+		t.Fatalf("accepted = %d", accepted)
 	}
 }

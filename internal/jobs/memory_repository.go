@@ -32,3 +32,7 @@ func (r *MemoryRepository) GetByID(_ context.Context, id string) (Job, error) {
 	}
 	return job, nil
 }
+
+func (r *MemoryRepository) InputSize(_ context.Context, job Job) (int64, error) {
+	return job.FileSizeBytes, nil
+}

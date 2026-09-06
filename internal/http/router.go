@@ -9,6 +9,7 @@ func NewRouter(jobsHandler *JobsHandler, documentationEnabled bool) http.Handler
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+apiPrefix+"/health", healthHandler)
 	mux.HandleFunc("POST "+apiPrefix+"/jobs", jobsHandler.Create)
+	mux.HandleFunc("POST "+apiPrefix+"/jobs/{id}/complete", jobsHandler.Complete)
 	mux.HandleFunc("GET "+apiPrefix+"/jobs/{id}", jobsHandler.GetByID)
 	mux.HandleFunc("GET "+apiPrefix+"/jobs/{id}/cleaned-stl", jobsHandler.DownloadCleanedStl)
 	mux.HandleFunc("GET "+apiPrefix+"/jobs/{id}/cleaned-3mf", jobsHandler.DownloadCleanedThreeMf)

@@ -39,10 +39,11 @@ func (c *fakeS3RepositoryClient) GetObject(_ context.Context, input *s3.GetObjec
 }
 
 func (c *fakeS3RepositoryClient) HeadObject(_ context.Context, input *s3.HeadObjectInput, _ ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
-	if _, ok := c.objects[aws.ToString(input.Key)]; !ok {
+	object, ok := c.objects[aws.ToString(input.Key)]
+	if !ok {
 		return nil, &types.NoSuchKey{}
 	}
-	return &s3.HeadObjectOutput{}, nil
+	return &s3.HeadObjectOutput{ContentLength: aws.Int64(int64(len(object)))}, nil
 }
 
 func TestS3RepositoryTracksCreatedProcessingAndCompleted(t *testing.T) {
@@ -111,5 +112,24 @@ func TestS3RepositoryTracksThreeMfInputUsingStoredFormat(t *testing.T) {
 	stored, err := repository.GetByID(ctx, job.ID)
 	if err != nil || stored.Status != StatusProcessing || stored.FileFormat != FileFormat3MF {
 		t.Fatalf("stored job = %+v, error = %v", stored, err)
+	}
+}
+
+func TestS3RepositoryUsesActualObjectSizeWhenAcceptingUpload(t *testing.T) {
+	ctx := context.Background()
+	client := newFakeS3RepositoryClient()
+	repository := NewS3Repository("bucket", client)
+	job := Job{
+		ID: "0123456789abcdef0123456789abcdef", FileName: "model.stl", FileSizeBytes: 1,
+		FileFormat: FileFormatSTL, Status: StatusCreated, CreatedAt: time.Now().UTC(),
+	}
+	client.objects[jobObjectKey(job.ID, "input/input.stl")] = []byte("actual-size")
+
+	size, err := repository.InputSize(ctx, job)
+	if err != nil {
+		t.Fatalf("InputSize() error = %v", err)
+	}
+	if size != int64(len("actual-size")) {
+		t.Errorf("size = %d, want actual S3 size", size)
 	}
 }

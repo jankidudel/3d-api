@@ -26,17 +26,27 @@ const (
 
 type Service struct {
 	repository     Repository
+	dispatcher     UploadDispatcher
 	uploadSigner   UploadSigner
 	uploadLifetime time.Duration
+}
+
+type UploadDispatcher interface {
+	Dispatch(context.Context, Job, int64) error
 }
 
 type UploadSigner interface {
 	PresignPost(ctx context.Context, objectKey string, fileSizeBytes int64, lifetime time.Duration) (url string, fields map[string]string, err error)
 }
 
-func NewService(repository Repository, uploadSigner UploadSigner, uploadLifetime time.Duration) *Service {
+func NewService(repository Repository, uploadSigner UploadSigner, uploadLifetime time.Duration, dispatchers ...UploadDispatcher) *Service {
+	var dispatcher UploadDispatcher
+	if len(dispatchers) > 0 {
+		dispatcher = dispatchers[0]
+	}
 	return &Service{
 		repository:     repository,
+		dispatcher:     dispatcher,
 		uploadSigner:   uploadSigner,
 		uploadLifetime: uploadLifetime,
 	}
@@ -61,9 +71,9 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 	job := Job{
 		ID:            id,
 		FileName:      input.FileName,
-		FileSizeBytes: input.FileSizeBytes,
-		FileFormat:    input.FileFormat,
-		Operation:     input.Operation, SplitAxis: input.SplitAxis, SplitPositionPercent: input.SplitPositionPercent,
+		FileSizeBytes: input.FileSizeBytes, QuotaID: input.QuotaID,
+		FileFormat: input.FileFormat,
+		Operation:  input.Operation, SplitAxis: input.SplitAxis, SplitPositionPercent: input.SplitPositionPercent,
 		Status:    StatusCreated,
 		CreatedAt: createdAt,
 	}
@@ -89,6 +99,28 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CreateResult, 
 			ExpiresAt: createdAt.Add(s.uploadLifetime),
 		},
 	}, nil
+}
+
+func (s *Service) AcceptUpload(ctx context.Context, id string) (Job, int64, error) {
+	job, err := s.GetByID(ctx, id)
+	if err != nil {
+		return Job{}, 0, err
+	}
+	size, err := s.repository.InputSize(ctx, job)
+	if err != nil {
+		return Job{}, 0, err
+	}
+	if size <= 0 || size > MaxUploadSizeBytes {
+		return Job{}, size, ErrFileTooLarge
+	}
+	return job, size, nil
+}
+
+func (s *Service) QueueUpload(ctx context.Context, job Job, actualSize int64) error {
+	if s.dispatcher == nil {
+		return errors.New("upload dispatcher is not configured")
+	}
+	return s.dispatcher.Dispatch(ctx, job, actualSize)
 }
 
 func ValidateCreateInput(input CreateInput) error {

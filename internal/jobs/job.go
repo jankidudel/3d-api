@@ -90,6 +90,7 @@ type Job struct {
 	SplitAxis            string
 	SplitPositionPercent float64
 	FileSizeBytes        int64
+	QuotaID              string
 	Status               Status
 	CreatedAt            time.Time
 	Report               json.RawMessage
@@ -103,6 +104,7 @@ type CreateInput struct {
 	Operation            Operation
 	SplitAxis            string
 	SplitPositionPercent float64
+	QuotaID              string
 }
 
 type Upload struct {

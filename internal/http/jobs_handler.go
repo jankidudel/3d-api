@@ -179,16 +179,7 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.limiter != nil {
-		_, err := h.limiter.Allow(r.Context(), r.RemoteAddr)
-		if errors.Is(err, ratelimit.ErrLimited) {
-			response.CodedError(w, http.StatusTooManyRequests, ErrorCodeRateLimited, RateLimitedMessage, nil)
-			return
-		}
-		if err != nil {
-			h.logger.ErrorContext(r.Context(), "rate limit failed", "error", err)
-			response.CodedError(w, http.StatusServiceUnavailable, ErrorCodeRateLimitUnavailable, RateLimitUnavailableMessage, nil)
-			return
-		}
+		input.QuotaID = h.limiter.Identifier(r.RemoteAddr)
 	}
 
 	result, err := h.service.Create(r.Context(), input)
@@ -211,6 +202,45 @@ func (h *JobsHandler) Create(w http.ResponseWriter, r *http.Request) {
 			ExpiresAt: result.Upload.ExpiresAt,
 		},
 	})
+}
+
+func (h *JobsHandler) Complete(w http.ResponseWriter, r *http.Request) {
+	job, actualSize, err := h.service.AcceptUpload(r.Context(), r.PathValue("id"))
+	if errors.Is(err, jobs.ErrNotFound) {
+		response.Error(w, http.StatusNotFound, "job or uploaded file not found")
+		return
+	}
+	if errors.Is(err, jobs.ErrFileTooLarge) {
+		response.CodedError(w, http.StatusRequestEntityTooLarge, ErrorCodeFileTooLarge, jobs.FileTooLargeMessage, nil)
+		return
+	}
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "verify uploaded file failed", "error", err)
+		response.Error(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	if h.limiter != nil {
+		_, err = h.limiter.Allow(r.Context(), job.QuotaID, job.ID, actualSize)
+		if errors.Is(err, ratelimit.ErrLimited) {
+			response.CodedError(w, http.StatusTooManyRequests, ErrorCodeRateLimited, RateLimitedMessage, nil)
+			return
+		}
+		if errors.Is(err, ratelimit.ErrByteLimited) {
+			response.CodedError(w, http.StatusTooManyRequests, ErrorCodeRateLimited, DailyAllowanceMessage, nil)
+			return
+		}
+		if err != nil {
+			h.logger.ErrorContext(r.Context(), "upload quota failed", "error", err)
+			response.CodedError(w, http.StatusServiceUnavailable, ErrorCodeRateLimitUnavailable, RateLimitUnavailableMessage, nil)
+			return
+		}
+	}
+	if err := h.service.QueueUpload(r.Context(), job, actualSize); err != nil {
+		h.logger.ErrorContext(r.Context(), "queue uploaded file failed", "error", err)
+		response.Error(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	response.JSON(w, http.StatusAccepted, toJobResponse(job))
 }
 
 func (h *JobsHandler) GetByID(w http.ResponseWriter, r *http.Request) {

@@ -29,7 +29,7 @@ type testRateStore struct {
 	counts map[string]int
 }
 
-func (s *testRateStore) Consume(_ context.Context, key string, _ time.Time) error {
+func (s *testRateStore) Consume(_ context.Context, key string, _ string, _ int64, _ time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.counts[key] >= ratelimit.MaxAcceptedJobsPerHour {
@@ -254,7 +254,7 @@ func TestCreateRejectsOversizedFile(t *testing.T) {
 	}
 }
 
-func TestCreateReturnsRateLimitWithoutCreatingOrPollingJob(t *testing.T) {
+func TestAbandonedCreatesDoNotConsumeUploadQuota(t *testing.T) {
 	service := jobs.NewService(jobs.NewMemoryRepository(), httpStubUploadSigner{}, 15*time.Minute)
 	limiter := ratelimit.New(&testRateStore{counts: map[string]int{}}, "test-secret")
 	handler := NewRouter(NewJobsHandler(service, limiter, slog.New(slog.NewTextHandler(io.Discard, nil))), true)
@@ -271,14 +271,8 @@ func TestCreateReturnsRateLimitWithoutCreatingOrPollingJob(t *testing.T) {
 	request.RemoteAddr = "203.0.113.8:1"
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
-	if response.Code != http.StatusTooManyRequests {
-		t.Fatalf("status = %d, want %d", response.Code, http.StatusTooManyRequests)
-	}
-	if response.Header().Get("Retry-After") != "" {
-		t.Error("Retry-After header must not be returned")
-	}
-	if !strings.Contains(response.Body.String(), `"code":"`+ErrorCodeRateLimited+`"`) {
-		t.Errorf("body = %q", response.Body.String())
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusCreated)
 	}
 }
 
