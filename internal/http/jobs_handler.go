@@ -222,11 +222,15 @@ func (h *JobsHandler) Complete(w http.ResponseWriter, r *http.Request) {
 	if h.limiter != nil {
 		_, err = h.limiter.Allow(r.Context(), job.QuotaID, job.ID, actualSize)
 		if errors.Is(err, ratelimit.ErrLimited) {
-			response.CodedError(w, http.StatusTooManyRequests, ErrorCodeRateLimited, RateLimitedMessage, nil)
+			response.CodedError(w, http.StatusTooManyRequests, ErrorCodeRateLimited, ratelimit.HourlyLimitMessage(), nil)
+			return
+		}
+		if errors.Is(err, ratelimit.ErrDailyLimited) {
+			response.CodedError(w, http.StatusTooManyRequests, ErrorCodeRateLimited, ratelimit.DailyLimitMessage(), nil)
 			return
 		}
 		if errors.Is(err, ratelimit.ErrByteLimited) {
-			response.CodedError(w, http.StatusTooManyRequests, ErrorCodeRateLimited, DailyAllowanceMessage, nil)
+			response.CodedError(w, http.StatusTooManyRequests, ErrorCodeRateLimited, ratelimit.DailyByteLimitMessage(), nil)
 			return
 		}
 		if err != nil {

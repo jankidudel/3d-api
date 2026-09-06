@@ -37,8 +37,11 @@ func (s *memoryStore) Consume(_ context.Context, key string, id string, size int
 			}
 		}
 	}
-	if hourly >= MaxAcceptedJobsPerHour || len(kept) >= MaxAcceptedJobsPerDay {
+	if hourly >= MaxAcceptedJobsPerHour {
 		return ErrLimited
+	}
+	if len(kept) >= MaxAcceptedJobsPerDay {
+		return ErrDailyLimited
 	}
 	if total+size > MaxAcceptedBytesPerDay {
 		return ErrByteLimited
@@ -59,28 +62,34 @@ func allow(limiter *Limiter, id string, size int64) error {
 	return err
 }
 
-func TestRollingHourAllowsTenthAndRejectsEleventh(t *testing.T) {
+func TestRollingLimitsAllowConfiguredCapacityAndRejectNext(t *testing.T) {
 	limiter, _ := testLimiter(time.Date(2026, 8, 22, 17, 44, 0, 0, time.UTC))
-	for index := range 10 {
+	limit := min(MaxAcceptedJobsPerHour, MaxAcceptedJobsPerDay)
+	for index := range limit {
 		if err := allow(limiter, string(rune('a'+index)), 1); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := allow(limiter, "eleventh", 1); err != ErrLimited {
+	want := ErrLimited
+	if MaxAcceptedJobsPerDay < MaxAcceptedJobsPerHour {
+		want = ErrDailyLimited
+	}
+	if err := allow(limiter, "next", 1); err != want {
 		t.Fatalf("error = %v", err)
 	}
 }
 
-func TestRollingDayAllowsHundredthAndRejectsNext(t *testing.T) {
+func TestRollingDayAllowsConfiguredCapacityAndRejectsNext(t *testing.T) {
 	limiter, _ := testLimiter(time.Date(2026, 8, 22, 0, 0, 0, 0, time.UTC))
-	for index := range 100 {
-		limiter.now = func() time.Time { return time.Date(2026, 8, 22, index/10*2, 0, 0, 0, time.UTC) }
+	for index := range MaxAcceptedJobsPerDay {
+		hour := index / MaxAcceptedJobsPerHour
+		limiter.now = func() time.Time { return time.Date(2026, 8, 22, hour, 0, 0, 0, time.UTC) }
 		if err := allow(limiter, string(rune(index+1)), 1); err != nil {
 			t.Fatal(err)
 		}
 	}
-	limiter.now = func() time.Time { return time.Date(2026, 8, 22, 23, 0, 0, 0, time.UTC) }
-	if err := allow(limiter, "101", 1); err != ErrLimited {
+	limiter.now = func() time.Time { return time.Date(2026, 8, 22, 3, 0, 0, 0, time.UTC) }
+	if err := allow(limiter, "next", 1); err != ErrDailyLimited {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -107,7 +116,7 @@ func TestByteAllowanceAndConcurrentAttempts(t *testing.T) {
 		})
 	}
 	group.Wait()
-	if accepted != MaxAcceptedJobsPerHour {
+	if accepted != min(MaxAcceptedJobsPerHour, MaxAcceptedJobsPerDay) {
 		t.Fatalf("accepted = %d", accepted)
 	}
 }

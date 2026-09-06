@@ -56,8 +56,11 @@ func (s *DynamoStore) Consume(ctx context.Context, id string, uploadID string, s
 				hourly++
 			}
 		}
-		if hourly >= MaxAcceptedJobsPerHour || len(kept) >= MaxAcceptedJobsPerDay {
+		if hourly >= MaxAcceptedJobsPerHour {
 			return ErrLimited
+		}
+		if len(kept) >= MaxAcceptedJobsPerDay {
+			return ErrDailyLimited
 		}
 		var totalBytes int64
 		for _, acceptedSize := range keptSizes {

@@ -6,21 +6,35 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
 	"time"
 )
 
+func HourlyLimitMessage() string {
+	return fmt.Sprintf("You can upload up to %d files per hour. Please try again later.", MaxAcceptedJobsPerHour)
+}
+
+func DailyLimitMessage() string {
+	return fmt.Sprintf("You can upload up to %d files per 24 hours. Please try again later.", MaxAcceptedJobsPerDay)
+}
+
+func DailyByteLimitMessage() string {
+	return fmt.Sprintf("Your %d MiB 24-hour upload allowance has been reached. Please try again later.", MaxAcceptedBytesPerDay/(1024*1024))
+}
+
 const (
 	MaxAcceptedJobsPerHour       = 10
-	MaxAcceptedJobsPerDay        = 100
+	MaxAcceptedJobsPerDay        = 30
 	MaxAcceptedBytesPerDay int64 = 256 * 1024 * 1024
 	RollingHour                  = 60 * time.Minute
 	RollingDay                   = 24 * time.Hour
 )
 
 var (
-	ErrLimited     = errors.New("rate limit exceeded")
-	ErrByteLimited = errors.New("upload byte limit exceeded")
+	ErrLimited      = errors.New("rate limit exceeded")
+	ErrDailyLimited = errors.New("daily upload limit exceeded")
+	ErrByteLimited  = errors.New("upload byte limit exceeded")
 )
 
 // Store keeps a bounded (maximum 30) timestamp list per HMAC-derived IP.
