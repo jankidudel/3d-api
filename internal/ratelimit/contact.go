@@ -8,19 +8,22 @@ import (
 )
 
 const (
-	MaxContactMessagesPerIPHour = 3
-	MaxContactMessagesPerIPDay  = 10
-	MaxContactMessagesPerDay    = 100
+	MaxContactMessagesPerIPDay = 10
+	MaxContactMessagesPerDay   = 1000
 )
 
 var (
-	ErrContactHourlyLimited = errors.New("contact hourly rate limit exceeded")
 	ErrContactDailyLimited  = errors.New("contact daily rate limit exceeded")
 	ErrContactGlobalLimited = errors.New("contact global daily rate limit exceeded")
 )
 
 type ContactStore interface {
 	Increment(context.Context, string, int, time.Time) error
+	Decrement(context.Context, string) error
+}
+
+type ContactReservation struct {
+	keys []string
 }
 
 type ContactLimiter struct {
@@ -33,17 +36,33 @@ func NewContactLimiter(store ContactStore, secret string) *ContactLimiter {
 	return &ContactLimiter{store: store, secret: []byte(secret), now: time.Now}
 }
 
-func (l *ContactLimiter) Allow(ctx context.Context, remoteAddress string) error {
+func (l *ContactLimiter) Reserve(ctx context.Context, remoteAddress string) (*ContactReservation, error) {
 	now := l.now().UTC()
 	identifier := hmacIdentifier(l.secret, normalizedIP(remoteAddress))
-	if err := l.store.Increment(ctx, fmt.Sprintf("contact#ip#%s#hour#%s", identifier, now.Format("2006010215")), MaxContactMessagesPerIPHour, now.Add(2*time.Hour)); err != nil {
-		return contactLimitError(err, ErrContactHourlyLimited)
+	reservation := &ContactReservation{keys: []string{
+		fmt.Sprintf("contact#ip#%s#day#%s", identifier, now.Format("20060102")),
+		fmt.Sprintf("contact#global#day#%s", now.Format("20060102")),
+	}}
+	limits := []int{MaxContactMessagesPerIPDay, MaxContactMessagesPerDay}
+	expiresAt := []time.Time{now.Add(48 * time.Hour), now.Add(48 * time.Hour)}
+	limitErrors := []error{ErrContactDailyLimited, ErrContactGlobalLimited}
+	for index, key := range reservation.keys {
+		if err := l.store.Increment(ctx, key, limits[index], expiresAt[index]); err != nil {
+			_ = l.Release(ctx, &ContactReservation{keys: reservation.keys[:index]})
+			return nil, contactLimitError(err, limitErrors[index])
+		}
 	}
-	if err := l.store.Increment(ctx, fmt.Sprintf("contact#ip#%s#day#%s", identifier, now.Format("20060102")), MaxContactMessagesPerIPDay, now.Add(48*time.Hour)); err != nil {
-		return contactLimitError(err, ErrContactDailyLimited)
+	return reservation, nil
+}
+
+func (l *ContactLimiter) Release(ctx context.Context, reservation *ContactReservation) error {
+	if reservation == nil {
+		return nil
 	}
-	if err := l.store.Increment(ctx, fmt.Sprintf("contact#global#day#%s", now.Format("20060102")), MaxContactMessagesPerDay, now.Add(48*time.Hour)); err != nil {
-		return contactLimitError(err, ErrContactGlobalLimited)
+	for _, key := range reservation.keys {
+		if err := l.store.Decrement(ctx, key); err != nil {
+			return err
+		}
 	}
 	return nil
 }

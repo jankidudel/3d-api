@@ -43,3 +43,27 @@ func (s *ContactDynamoStore) Increment(ctx context.Context, key string, limit in
 	}
 	return err
 }
+
+func (s *ContactDynamoStore) Decrement(ctx context.Context, key string) error {
+	_, err := s.client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName:           &s.table,
+		Key:                 map[string]types.AttributeValue{"windowKey": &types.AttributeValueMemberS{Value: key}},
+		UpdateExpression:    str("ADD #count :minusOne"),
+		ConditionExpression: str("#count >= :one"),
+		ExpressionAttributeNames: map[string]string{
+			"#count": "count",
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":minusOne": &types.AttributeValueMemberN{Value: "-1"},
+			":one":      &types.AttributeValueMemberN{Value: "1"},
+		},
+	})
+	if err == nil {
+		return nil
+	}
+	var conditional *types.ConditionalCheckFailedException
+	if errors.As(err, &conditional) {
+		return nil
+	}
+	return err
+}

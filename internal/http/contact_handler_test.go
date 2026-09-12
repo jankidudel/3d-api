@@ -35,6 +35,10 @@ func (contactRateStoreStub) Increment(context.Context, string, int, time.Time) e
 	return nil
 }
 
+func (contactRateStoreStub) Decrement(context.Context, string) error {
+	return nil
+}
+
 func testContactLimiter() *ratelimit.ContactLimiter {
 	return ratelimit.NewContactLimiter(contactRateStoreStub{}, "test-secret")
 }
@@ -43,6 +47,10 @@ type limitedContactRateStoreStub struct{}
 
 func (limitedContactRateStoreStub) Increment(context.Context, string, int, time.Time) error {
 	return ratelimit.ErrLimited
+}
+
+func (limitedContactRateStoreStub) Decrement(context.Context, string) error {
+	return nil
 }
 
 func (s captchaStub) Verify(_ context.Context, _ string) (contact.CaptchaVerification, error) {

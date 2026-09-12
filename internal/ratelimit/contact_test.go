@@ -23,16 +23,25 @@ func (s *contactMemoryStore) Increment(_ context.Context, key string, limit int,
 	return nil
 }
 
-func TestContactLimiterEnforcesPerIPHourlyLimit(t *testing.T) {
+func (s *contactMemoryStore) Decrement(_ context.Context, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.counts[key] > 0 {
+		s.counts[key]--
+	}
+	return nil
+}
+
+func TestContactLimiterEnforcesPerIPDailyLimit(t *testing.T) {
 	limiter := NewContactLimiter(&contactMemoryStore{counts: map[string]int{}}, "test-secret")
 	limiter.now = func() time.Time { return time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC) }
-	for range MaxContactMessagesPerIPHour {
-		if err := limiter.Allow(context.Background(), "203.0.113.8:1234"); err != nil {
+	for range MaxContactMessagesPerIPDay {
+		if _, err := limiter.Reserve(context.Background(), "203.0.113.8:1234"); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := limiter.Allow(context.Background(), "203.0.113.8:4321"); err != ErrContactHourlyLimited {
-		t.Fatalf("error = %v, want %v", err, ErrContactHourlyLimited)
+	if _, err := limiter.Reserve(context.Background(), "203.0.113.8:4321"); err != ErrContactDailyLimited {
+		t.Fatalf("error = %v, want %v", err, ErrContactDailyLimited)
 	}
 }
 
@@ -40,11 +49,29 @@ func TestContactLimiterEnforcesGlobalDailyLimit(t *testing.T) {
 	limiter := NewContactLimiter(&contactMemoryStore{counts: map[string]int{}}, "test-secret")
 	limiter.now = func() time.Time { return time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC) }
 	for index := range MaxContactMessagesPerDay {
-		if err := limiter.Allow(context.Background(), "203.0.113."+strconv.Itoa(index)+":1234"); err != nil {
+		if _, err := limiter.Reserve(context.Background(), "203.0.113."+strconv.Itoa(index)+":1234"); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := limiter.Allow(context.Background(), "198.51.100.8:1234"); err != ErrContactGlobalLimited {
+	if _, err := limiter.Reserve(context.Background(), "198.51.100.8:1234"); err != ErrContactGlobalLimited {
 		t.Fatalf("error = %v, want %v", err, ErrContactGlobalLimited)
+	}
+}
+
+func TestContactLimiterReleasesAFailedDeliveryReservation(t *testing.T) {
+	store := &contactMemoryStore{counts: map[string]int{}}
+	limiter := NewContactLimiter(store, "test-secret")
+	limiter.now = func() time.Time { return time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC) }
+	reservation, err := limiter.Reserve(context.Background(), "203.0.113.8:1234")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := limiter.Release(context.Background(), reservation); err != nil {
+		t.Fatal(err)
+	}
+	for range MaxContactMessagesPerIPDay {
+		if _, err := limiter.Reserve(context.Background(), "203.0.113.8:1234"); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

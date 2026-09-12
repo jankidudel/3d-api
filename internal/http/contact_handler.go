@@ -70,10 +70,9 @@ func (h *ContactHandler) Create(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusBadRequest, "Complete the CAPTCHA before sending your message.")
 		return
 	}
-	if err := h.limiter.Allow(r.Context(), contactClientAddress(r)); err != nil {
+	reservation, err := h.limiter.Reserve(r.Context(), contactClientAddress(r))
+	if err != nil {
 		switch {
-		case errors.Is(err, ratelimit.ErrContactHourlyLimited):
-			response.Error(w, http.StatusTooManyRequests, "You have sent the maximum number of messages for this hour. Please try again later.")
 		case errors.Is(err, ratelimit.ErrContactDailyLimited):
 			response.Error(w, http.StatusTooManyRequests, "You have sent the maximum number of messages for today. Please try again tomorrow.")
 		case errors.Is(err, ratelimit.ErrContactGlobalLimited):
@@ -91,6 +90,11 @@ func (h *ContactHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Body:    request.Message,
 		Context: request.Context,
 	}); err != nil {
+		if contact.IsMessageRejected(err) {
+			if releaseErr := h.limiter.Release(r.Context(), reservation); releaseErr != nil {
+				h.logger.Error("contact rate limit release failed", "error", releaseErr)
+			}
+		}
 		h.logger.Error("contact email send failed", "error", err)
 		response.Error(w, http.StatusServiceUnavailable, "We could not send your message. Please try again.")
 		return

@@ -2,12 +2,18 @@ package contact
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 )
+
+func IsMessageRejected(err error) bool {
+	var rejected *types.MessageRejected
+	return errors.As(err, &rejected)
+}
 
 type Message struct {
 	Reason  string
