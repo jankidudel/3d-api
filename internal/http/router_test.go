@@ -21,7 +21,7 @@ import (
 
 func testRouter() http.Handler {
 	service := jobs.NewService(jobs.NewMemoryRepository(), httpStubUploadSigner{}, 15*time.Minute)
-	return NewRouter(NewJobsHandler(service, nil, slog.New(slog.NewTextHandler(io.Discard, nil))), true)
+	return NewRouter(NewJobsHandler(service, nil, slog.New(slog.NewTextHandler(io.Discard, nil))), NewContactHandler(nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil))), true)
 }
 
 type testRateStore struct {
@@ -158,7 +158,7 @@ func TestCreateLogsInternalError(t *testing.T) {
 	var logs strings.Builder
 	signingErr := errors.New("credentials unavailable")
 	service := jobs.NewService(jobs.NewMemoryRepository(), failingUploadSigner{err: signingErr}, 15*time.Minute)
-	handler := NewRouter(NewJobsHandler(service, nil, slog.New(slog.NewTextHandler(&logs, nil))), true)
+	handler := NewRouter(NewJobsHandler(service, nil, slog.New(slog.NewTextHandler(&logs, nil))), NewContactHandler(nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil))), true)
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":117884}`))
 	response := httptest.NewRecorder()
 
@@ -257,7 +257,7 @@ func TestCreateRejectsOversizedFile(t *testing.T) {
 func TestAbandonedCreatesDoNotConsumeUploadQuota(t *testing.T) {
 	service := jobs.NewService(jobs.NewMemoryRepository(), httpStubUploadSigner{}, 15*time.Minute)
 	limiter := ratelimit.New(&testRateStore{counts: map[string]int{}}, "test-secret")
-	handler := NewRouter(NewJobsHandler(service, limiter, slog.New(slog.NewTextHandler(io.Discard, nil))), true)
+	handler := NewRouter(NewJobsHandler(service, limiter, slog.New(slog.NewTextHandler(io.Discard, nil))), NewContactHandler(nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil))), true)
 	for range ratelimit.MaxAcceptedJobsPerHour {
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/jobs", strings.NewReader(`{"fileName":"rotor.stl","fileSizeBytes":1}`))
 		request.RemoteAddr = "203.0.113.8:1"
@@ -360,7 +360,7 @@ func TestSwaggerRedirect(t *testing.T) {
 
 func TestDocumentationIsNotExposedWhenDisabled(t *testing.T) {
 	service := jobs.NewService(jobs.NewMemoryRepository(), httpStubUploadSigner{}, 15*time.Minute)
-	router := NewRouter(NewJobsHandler(service, nil, slog.New(slog.NewTextHandler(io.Discard, nil))), false)
+	router := NewRouter(NewJobsHandler(service, nil, slog.New(slog.NewTextHandler(io.Discard, nil))), NewContactHandler(nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil))), false)
 
 	for _, path := range []string{"/api/swagger", "/api/swagger/", "/api/v1/openapi.yaml"} {
 		response := httptest.NewRecorder()

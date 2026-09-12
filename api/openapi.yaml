@@ -59,6 +59,31 @@ paths:
                 $ref: "#/components/schemas/CodedErrorResponse"
         "500":
           $ref: "#/components/responses/InternalServerError"
+  /contact:
+    post:
+      summary: Send a verified contact or feedback message
+      operationId: createContactMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactMessageRequest"
+      responses:
+        "202":
+          description: The message was accepted for delivery.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactMessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          description: Contact delivery or CAPTCHA verification is temporarily unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /jobs/{id}:
     get:
       summary: Retrieve a job
@@ -178,6 +203,45 @@ components:
           type: string
           enum: [safe_stl_repair, safe_3mf_repair]
           description: Optional explicit safe cleanup operation. Omit for a normal quality check.
+    ContactMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [reason, email, message, turnstileToken]
+      properties:
+        reason:
+          type: string
+          enum:
+            - Report a problem
+            - Request a tool or feature
+            - General question
+            - Partnership or business enquiry
+        name:
+          type: string
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        message:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        context:
+          type: string
+          maxLength: 240
+        website:
+          type: string
+          description: Hidden honeypot field. It must be left blank.
+        turnstileToken:
+          type: string
+          description: Cloudflare Turnstile token verified server-side.
+    ContactMessageResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [accepted]
     Job:
       type: object
       required:

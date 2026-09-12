@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"3d-api/internal/contact"
 	apihttp "3d-api/internal/http"
 	"3d-api/internal/jobs"
 	"3d-api/internal/processingqueue"
@@ -17,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
 
@@ -42,8 +44,19 @@ func NewHandler(ctx context.Context, logger *slog.Logger) (http.Handler, error) 
 	repository := jobs.NewS3Repository(bucket, s3Client)
 	dispatcher := processingqueue.NewSQSDispatcher(bucket, queueURL, sqs.NewFromConfig(awsConfig))
 	service := jobs.NewService(repository, uploadSigner, 15*time.Minute, dispatcher)
+	contactHandler := apihttp.NewContactHandler(nil, nil, logger)
+	contactEmail := os.Getenv("CONTACT_EMAIL")
+	turnstileSecret := os.Getenv("TURNSTILE_SECRET")
+	if contactEmail != "" && turnstileSecret != "" {
+		contactHandler = apihttp.NewContactHandler(
+			contact.NewSESSender(sesv2.NewFromConfig(awsConfig), contactEmail),
+			contact.NewTurnstileVerifier(turnstileSecret, http.DefaultClient),
+			logger,
+		)
+	}
 	return apihttp.NewRouter(
 		apihttp.NewJobsHandler(service, limiter, logger, uploadSigner),
+		contactHandler,
 		os.Getenv("ENABLE_API_DOCUMENTATION") != "false",
 	), nil
 }
