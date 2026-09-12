@@ -78,6 +78,12 @@ paths:
                 $ref: "#/components/schemas/ContactMessageResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "429":
+          description: The per-visitor or global daily contact-delivery limit has been reached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "503":
           description: Contact delivery or CAPTCHA verification is temporarily unavailable.
           content:

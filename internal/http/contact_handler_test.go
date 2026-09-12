@@ -8,8 +8,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"3d-api/internal/contact"
+	"3d-api/internal/ratelimit"
 )
 
 type contactSenderStub struct {
@@ -27,6 +29,22 @@ type captchaStub struct {
 	err      error
 }
 
+type contactRateStoreStub struct{}
+
+func (contactRateStoreStub) Increment(context.Context, string, int, time.Time) error {
+	return nil
+}
+
+func testContactLimiter() *ratelimit.ContactLimiter {
+	return ratelimit.NewContactLimiter(contactRateStoreStub{}, "test-secret")
+}
+
+type limitedContactRateStoreStub struct{}
+
+func (limitedContactRateStoreStub) Increment(context.Context, string, int, time.Time) error {
+	return ratelimit.ErrLimited
+}
+
 func (s captchaStub) Verify(_ context.Context, _ string) (bool, error) {
 	return s.verified, s.err
 }
@@ -34,7 +52,7 @@ func (s captchaStub) Verify(_ context.Context, _ string) (bool, error) {
 func TestContactAcceptsVerifiedMessageWithoutLoggingContents(t *testing.T) {
 	sender := &contactSenderStub{}
 	var logs strings.Builder
-	handler := NewContactHandler(sender, captchaStub{verified: true}, slog.New(slog.NewTextHandler(&logs, nil)))
+	handler := NewContactHandler(sender, captchaStub{verified: true}, testContactLimiter(), slog.New(slog.NewTextHandler(&logs, nil)))
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/contact", strings.NewReader(`{"reason":"Report a problem","name":"Ada","email":"ada@example.com","message":"A message that must not be logged","context":"/stl-quality-check","website":"","turnstileToken":"token"}`))
 	response := httptest.NewRecorder()
 
@@ -64,7 +82,7 @@ func TestContactRejectsInvalidOrUnverifiedRequests(t *testing.T) {
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			handler := NewContactHandler(&contactSenderStub{}, captchaStub{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+			handler := NewContactHandler(&contactSenderStub{}, captchaStub{}, testContactLimiter(), slog.New(slog.NewTextHandler(io.Discard, nil)))
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/contact", strings.NewReader(testCase.body))
 			response := httptest.NewRecorder()
 
@@ -79,7 +97,7 @@ func TestContactRejectsInvalidOrUnverifiedRequests(t *testing.T) {
 
 func TestContactHoneypotDoesNotSendEmail(t *testing.T) {
 	sender := &contactSenderStub{}
-	handler := NewContactHandler(sender, captchaStub{verified: true}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := NewContactHandler(sender, captchaStub{verified: true}, testContactLimiter(), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/contact", strings.NewReader(`{"reason":"General question","email":"ada@example.com","message":"Help","website":"spam.example","turnstileToken":"token"}`))
 	response := httptest.NewRecorder()
 
@@ -91,7 +109,7 @@ func TestContactHoneypotDoesNotSendEmail(t *testing.T) {
 }
 
 func TestContactReportsUnavailableWhenNotConfigured(t *testing.T) {
-	handler := NewContactHandler(nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := NewContactHandler(nil, nil, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/contact", nil)
 	response := httptest.NewRecorder()
 
@@ -99,5 +117,29 @@ func TestContactReportsUnavailableWhenNotConfigured(t *testing.T) {
 
 	if response.Code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestContactRateLimitPreventsEmailDelivery(t *testing.T) {
+	sender := &contactSenderStub{}
+	limiter := ratelimit.NewContactLimiter(limitedContactRateStoreStub{}, "test-secret")
+	handler := NewContactHandler(sender, captchaStub{verified: true}, limiter, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/contact", strings.NewReader(`{"reason":"General question","email":"ada@example.com","message":"Help","turnstileToken":"token"}`))
+	response := httptest.NewRecorder()
+
+	handler.Create(response, request)
+
+	if response.Code != http.StatusTooManyRequests || len(sender.messages) != 0 {
+		t.Errorf("status = %d, sent = %d", response.Code, len(sender.messages))
+	}
+}
+
+func TestContactClientAddressUsesTheViewerAddressForwardedByCloudFront(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/contact", nil)
+	request.RemoteAddr = "192.0.2.10:443"
+	request.Header.Set("X-Forwarded-For", "203.0.113.8, 192.0.2.10")
+
+	if got := contactClientAddress(request); got != "203.0.113.8" {
+		t.Errorf("address = %q", got)
 	}
 }

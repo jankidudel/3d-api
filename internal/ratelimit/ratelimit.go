@@ -59,14 +59,18 @@ func (l *Limiter) Allow(ctx context.Context, identifier string, uploadID string,
 }
 
 func (l *Limiter) Identifier(ip string) string {
-	if host, _, err := net.SplitHostPort(ip); err == nil {
-		ip = host
-	}
-	return l.identifier(ip)
+	return hmacIdentifier(l.secret, normalizedIP(ip))
 }
 
-func (l *Limiter) identifier(ip string) string {
-	mac := hmac.New(sha256.New, l.secret)
+func normalizedIP(ip string) string {
+	if host, _, err := net.SplitHostPort(ip); err == nil {
+		return host
+	}
+	return ip
+}
+
+func hmacIdentifier(secret []byte, ip string) string {
+	mac := hmac.New(sha256.New, secret)
 	_, _ = mac.Write([]byte(ip))
 	return hex.EncodeToString(mac.Sum(nil))
 }

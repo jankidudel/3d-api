@@ -2,6 +2,7 @@ package apihttp
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"3d-api/internal/contact"
+	"3d-api/internal/ratelimit"
 	"3d-api/internal/response"
 )
 
@@ -27,15 +29,16 @@ type contactRequest struct {
 type ContactHandler struct {
 	sender  contact.Sender
 	captcha contact.CaptchaVerifier
+	limiter *ratelimit.ContactLimiter
 	logger  *slog.Logger
 }
 
-func NewContactHandler(sender contact.Sender, captcha contact.CaptchaVerifier, logger *slog.Logger) *ContactHandler {
-	return &ContactHandler{sender: sender, captcha: captcha, logger: logger}
+func NewContactHandler(sender contact.Sender, captcha contact.CaptchaVerifier, limiter *ratelimit.ContactLimiter, logger *slog.Logger) *ContactHandler {
+	return &ContactHandler{sender: sender, captcha: captcha, limiter: limiter, logger: logger}
 }
 
 func (h *ContactHandler) Create(w http.ResponseWriter, r *http.Request) {
-	if h.sender == nil || h.captcha == nil {
+	if h.sender == nil || h.captcha == nil || h.limiter == nil {
 		response.Error(w, http.StatusServiceUnavailable, "Contact delivery is being configured. Please check back soon.")
 		return
 	}
@@ -66,6 +69,20 @@ func (h *ContactHandler) Create(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusBadRequest, "Complete the CAPTCHA before sending your message.")
 		return
 	}
+	if err := h.limiter.Allow(r.Context(), contactClientAddress(r)); err != nil {
+		switch {
+		case errors.Is(err, ratelimit.ErrContactHourlyLimited):
+			response.Error(w, http.StatusTooManyRequests, "You have sent the maximum number of messages for this hour. Please try again later.")
+		case errors.Is(err, ratelimit.ErrContactDailyLimited):
+			response.Error(w, http.StatusTooManyRequests, "You have sent the maximum number of messages for today. Please try again tomorrow.")
+		case errors.Is(err, ratelimit.ErrContactGlobalLimited):
+			response.Error(w, http.StatusTooManyRequests, "Contact delivery has reached its daily limit. Please try again tomorrow.")
+		default:
+			h.logger.Error("contact rate limit check failed", "error", err)
+			response.Error(w, http.StatusServiceUnavailable, "We could not send your message. Please try again.")
+		}
+		return
+	}
 	if err := h.sender.Send(r.Context(), contact.Message{
 		Reason:  request.Reason,
 		Name:    request.Name,
@@ -78,6 +95,16 @@ func (h *ContactHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.JSON(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+}
+
+func contactClientAddress(request *http.Request) string {
+	if forwardedFor := request.Header.Get("X-Forwarded-For"); forwardedFor != "" {
+		if clientAddress, _, found := strings.Cut(forwardedFor, ","); found {
+			return strings.TrimSpace(clientAddress)
+		}
+		return strings.TrimSpace(forwardedFor)
+	}
+	return request.RemoteAddr
 }
 
 func trimContactRequest(request contactRequest) contactRequest {

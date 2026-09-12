@@ -39,18 +39,20 @@ func NewHandler(ctx context.Context, logger *slog.Logger) (http.Handler, error) 
 		return nil, err
 	}
 	s3Client := s3.NewFromConfig(awsConfig)
-	limiter := ratelimit.New(ratelimit.NewDynamoStore(table, dynamodb.NewFromConfig(awsConfig)), secret)
+	dynamoClient := dynamodb.NewFromConfig(awsConfig)
+	limiter := ratelimit.New(ratelimit.NewDynamoStore(table, dynamoClient), secret)
 	uploadSigner := uploads.NewS3Presigner(bucket, s3.NewPresignClient(s3Client))
 	repository := jobs.NewS3Repository(bucket, s3Client)
 	dispatcher := processingqueue.NewSQSDispatcher(bucket, queueURL, sqs.NewFromConfig(awsConfig))
 	service := jobs.NewService(repository, uploadSigner, 15*time.Minute, dispatcher)
-	contactHandler := apihttp.NewContactHandler(nil, nil, logger)
+	contactHandler := apihttp.NewContactHandler(nil, nil, nil, logger)
 	contactEmail := os.Getenv("CONTACT_EMAIL")
 	turnstileSecret := os.Getenv("TURNSTILE_SECRET")
 	if contactEmail != "" && turnstileSecret != "" {
 		contactHandler = apihttp.NewContactHandler(
 			contact.NewSESSender(sesv2.NewFromConfig(awsConfig), contactEmail),
 			contact.NewTurnstileVerifier(turnstileSecret, http.DefaultClient),
+			ratelimit.NewContactLimiter(ratelimit.NewContactDynamoStore(table, dynamoClient), secret),
 			logger,
 		)
 	}
