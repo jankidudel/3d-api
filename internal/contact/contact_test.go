@@ -37,3 +37,20 @@ func TestSESSenderUsesTheContactMailboxAndReplyToAddress(t *testing.T) {
 		t.Errorf("reply-to = %q", client.input.ReplyToAddresses[0])
 	}
 }
+
+func TestSESSenderNotifiesTheContactMailboxAboutNewSubscribers(t *testing.T) {
+	client := &sesClientStub{}
+	sender := NewSESSender(client, "hello@inspectmesh.com")
+
+	err := sender.SendSubscription(context.Background(), "ada@example.com")
+
+	if err != nil {
+		t.Fatalf("SendSubscription() error = %v", err)
+	}
+	if got := aws.ToString(client.input.Content.Simple.Subject.Data); got != "New subscriber: ada@example.com" {
+		t.Errorf("subject = %q", got)
+	}
+	if got := client.input.Destination.ToAddresses[0]; got != "hello@inspectmesh.com" {
+		t.Errorf("destination = %q", got)
+	}
+}

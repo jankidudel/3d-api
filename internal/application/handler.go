@@ -13,6 +13,7 @@ import (
 	"3d-api/internal/jobs"
 	"3d-api/internal/processingqueue"
 	"3d-api/internal/ratelimit"
+	"3d-api/internal/subscriptions"
 	"3d-api/internal/uploads"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -46,19 +47,32 @@ func NewHandler(ctx context.Context, logger *slog.Logger) (http.Handler, error) 
 	dispatcher := processingqueue.NewSQSDispatcher(bucket, queueURL, sqs.NewFromConfig(awsConfig))
 	service := jobs.NewService(repository, uploadSigner, 15*time.Minute, dispatcher)
 	contactHandler := apihttp.NewContactHandler(nil, nil, nil, logger)
+	subscriptionHandler := apihttp.NewSubscriptionHandler(nil, nil, nil, logger)
 	contactEmail := os.Getenv("CONTACT_EMAIL")
 	turnstileSecret := os.Getenv("TURNSTILE_SECRET")
+	subscriberTable := os.Getenv("SUBSCRIBER_TABLE")
 	if contactEmail != "" && turnstileSecret != "" {
+		sender := contact.NewSESSender(sesv2.NewFromConfig(awsConfig), contactEmail)
+		captcha := contact.NewTurnstileVerifier(turnstileSecret, http.DefaultClient)
 		contactHandler = apihttp.NewContactHandler(
-			contact.NewSESSender(sesv2.NewFromConfig(awsConfig), contactEmail),
-			contact.NewTurnstileVerifier(turnstileSecret, http.DefaultClient),
+			sender,
+			captcha,
 			ratelimit.NewContactLimiter(ratelimit.NewContactDynamoStore(table, dynamoClient), secret),
 			logger,
 		)
+		if subscriberTable != "" {
+			subscriptionHandler = apihttp.NewSubscriptionHandler(
+				sender,
+				captcha,
+				subscriptions.NewService(subscriptions.NewDynamoStore(subscriberTable, dynamoClient), secret),
+				logger,
+			)
+		}
 	}
 	return apihttp.NewRouter(
 		apihttp.NewJobsHandler(service, limiter, logger, uploadSigner),
 		contactHandler,
+		subscriptionHandler,
 		os.Getenv("ENABLE_API_DOCUMENTATION") != "false",
 	), nil
 }

@@ -27,6 +27,10 @@ type Sender interface {
 	Send(context.Context, Message) error
 }
 
+type SubscriberSender interface {
+	SendSubscription(context.Context, string) error
+}
+
 type SESClient interface {
 	SendEmail(context.Context, *sesv2.SendEmailInput, ...func(*sesv2.Options)) (*sesv2.SendEmailOutput, error)
 }
@@ -55,6 +59,18 @@ func (s *SESSender) Send(ctx context.Context, message Message) error {
 				valueOrDefault(message.Context, "Not provided"),
 				message.Body,
 			))}},
+		}},
+	})
+	return err
+}
+
+func (s *SESSender) SendSubscription(ctx context.Context, email string) error {
+	_, err := s.client.SendEmail(ctx, &sesv2.SendEmailInput{
+		FromEmailAddress: aws.String(s.destination),
+		Destination:      &types.Destination{ToAddresses: []string{s.destination}},
+		Content: &types.EmailContent{Simple: &types.Message{
+			Subject: &types.Content{Data: aws.String("New subscriber: " + email)},
+			Body:    &types.Body{Text: &types.Content{Data: aws.String("New InspectMesh subscriber: " + email)}},
 		}},
 	})
 	return err

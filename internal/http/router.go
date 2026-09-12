@@ -5,11 +5,12 @@ import "net/http"
 const apiPrefix = "/api/v1"
 const swaggerPrefix = "/api/swagger"
 
-func NewRouter(jobsHandler *JobsHandler, contactHandler *ContactHandler, documentationEnabled bool) http.Handler {
+func NewRouter(jobsHandler *JobsHandler, contactHandler *ContactHandler, subscriptionHandler *SubscriptionHandler, documentationEnabled bool) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+apiPrefix+"/health", healthHandler)
 	mux.HandleFunc("POST "+apiPrefix+"/jobs", jobsHandler.Create)
 	mux.HandleFunc("POST "+apiPrefix+"/contact", contactHandler.Create)
+	mux.HandleFunc("POST "+apiPrefix+"/subscriptions", subscriptionHandler.Create)
 	mux.HandleFunc("POST "+apiPrefix+"/jobs/{id}/complete", jobsHandler.Complete)
 	mux.HandleFunc("GET "+apiPrefix+"/jobs/{id}", jobsHandler.GetByID)
 	mux.HandleFunc("GET "+apiPrefix+"/jobs/{id}/cleaned-stl", jobsHandler.DownloadCleanedStl)

@@ -90,6 +90,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /subscriptions:
+    post:
+      summary: Subscribe an email address to InspectMesh updates
+      operationId: createSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionRequest"
+      responses:
+        "202":
+          description: The subscription was accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: The email address is already subscribed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: The per-visitor or global subscription daily limit has been reached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Subscription delivery or CAPTCHA verification is temporarily unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /jobs/{id}:
     get:
       summary: Retrieve a job
@@ -242,6 +279,28 @@ components:
           type: string
           description: Cloudflare Turnstile token verified server-side.
     ContactMessageResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [accepted]
+    SubscriptionRequest:
+      type: object
+      additionalProperties: false
+      required: [email, turnstileToken]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        website:
+          type: string
+          description: Hidden honeypot field. It must be left blank.
+        turnstileToken:
+          type: string
+          description: Cloudflare Turnstile token verified server-side.
+    SubscriptionResponse:
       type: object
       required: [status]
       properties:
