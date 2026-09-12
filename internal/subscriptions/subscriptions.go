@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	MaxSubscriptionsPerIPDay = 1
+	MaxSubscriptionsPerIPDay = 10
 	MaxSubscriptionsPerDay   = 1000
 )
 

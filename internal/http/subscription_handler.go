@@ -73,7 +73,7 @@ func (h *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, subscriptions.ErrAlreadySubscribed):
 			response.Error(w, http.StatusConflict, "You've already subscribed.")
 		case errors.Is(err, subscriptions.ErrDailyLimited):
-			response.Error(w, http.StatusTooManyRequests, "You can subscribe once per day. Please try again tomorrow.")
+			response.Error(w, http.StatusTooManyRequests, "Request limit per day exceeded.")
 		case errors.Is(err, subscriptions.ErrGlobalLimited):
 			response.Error(w, http.StatusTooManyRequests, "Subscriptions have reached their daily limit. Please try again tomorrow.")
 		default:

@@ -69,7 +69,7 @@ func TestSubscriptionReportsDailyLimit(t *testing.T) {
 
 	handler.Create(response, request)
 
-	if response.Code != http.StatusTooManyRequests || !strings.Contains(response.Body.String(), "once per day") {
+	if response.Code != http.StatusTooManyRequests || !strings.Contains(response.Body.String(), "Request limit per day exceeded.") {
 		t.Errorf("status = %d, body = %s", response.Code, response.Body.String())
 	}
 }
