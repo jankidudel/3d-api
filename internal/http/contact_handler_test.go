@@ -45,8 +45,8 @@ func (limitedContactRateStoreStub) Increment(context.Context, string, int, time.
 	return ratelimit.ErrLimited
 }
 
-func (s captchaStub) Verify(_ context.Context, _ string) (bool, error) {
-	return s.verified, s.err
+func (s captchaStub) Verify(_ context.Context, _ string) (contact.CaptchaVerification, error) {
+	return contact.CaptchaVerification{Valid: s.verified}, s.err
 }
 
 func TestContactAcceptsVerifiedMessageWithoutLoggingContents(t *testing.T) {

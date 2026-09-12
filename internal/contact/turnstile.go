@@ -11,7 +11,12 @@ import (
 const turnstileVerifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
 type CaptchaVerifier interface {
-	Verify(context.Context, string) (bool, error)
+	Verify(context.Context, string) (CaptchaVerification, error)
+}
+
+type CaptchaVerification struct {
+	Valid        bool
+	FailureCodes []string
 }
 
 type TurnstileVerifier struct {
@@ -23,7 +28,7 @@ func NewTurnstileVerifier(secret string, client *http.Client) *TurnstileVerifier
 	return &TurnstileVerifier{secret: secret, client: client}
 }
 
-func (v *TurnstileVerifier) Verify(ctx context.Context, token string) (bool, error) {
+func (v *TurnstileVerifier) Verify(ctx context.Context, token string) (CaptchaVerification, error) {
 	form := url.Values{"secret": {v.secret}, "response": {token}}
 	request, err := http.NewRequestWithContext(
 		ctx,
@@ -32,22 +37,23 @@ func (v *TurnstileVerifier) Verify(ctx context.Context, token string) (bool, err
 		strings.NewReader(form.Encode()),
 	)
 	if err != nil {
-		return false, err
+		return CaptchaVerification{}, err
 	}
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	response, err := v.client.Do(request)
 	if err != nil {
-		return false, err
+		return CaptchaVerification{}, err
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return false, nil
+		return CaptchaVerification{}, nil
 	}
 	var result struct {
-		Success bool `json:"success"`
+		Success    bool     `json:"success"`
+		ErrorCodes []string `json:"error-codes"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
-		return false, err
+		return CaptchaVerification{}, err
 	}
-	return result.Success, nil
+	return CaptchaVerification{Valid: result.Success, FailureCodes: result.ErrorCodes}, nil
 }

@@ -59,13 +59,14 @@ func (h *ContactHandler) Create(w http.ResponseWriter, r *http.Request) {
 		response.JSON(w, http.StatusAccepted, map[string]string{"status": "accepted"})
 		return
 	}
-	verified, err := h.captcha.Verify(r.Context(), request.TurnstileToken)
+	verification, err := h.captcha.Verify(r.Context(), request.TurnstileToken)
 	if err != nil {
 		h.logger.Error("contact captcha verification failed", "error", err)
 		response.Error(w, http.StatusServiceUnavailable, "We could not verify the CAPTCHA. Please try again.")
 		return
 	}
-	if !verified {
+	if !verification.Valid {
+		h.logger.Warn("contact captcha rejected", "failureCodes", strings.Join(verification.FailureCodes, ","))
 		response.Error(w, http.StatusBadRequest, "Complete the CAPTCHA before sending your message.")
 		return
 	}
