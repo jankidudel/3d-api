@@ -1,0 +1,13 @@
+# Local build, test, coverage, and secret files.
+3d-api
+artifacts/
+coverage.out
+*.test
+*.out
+.env
+.env.*
+
+# Local editor and diagnostic files.
+.idea/
+.vscode/
+*.log
